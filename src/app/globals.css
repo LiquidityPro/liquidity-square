@@ -100,6 +100,17 @@
   h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
 }
 
+@layer utilities {
+  .scrollbar-hidden {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @utility grid-floor {
   background-image:
     linear-gradient(to right, color-mix(in oklch, var(--border) 45%, transparent) 1px, transparent 1px),
