@@ -1,18 +1,16 @@
+"use client";
 import { useMemo, useRef, useState, useEffect } from "react";
-import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
+import { useRouter, useParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { TRENDING, getTickerData } from "@/components/square/data";
 import { Composer, PostCard, SentimentBar } from "@/components/square/parts";
 import { useSquare } from "@/components/square/context";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/square/$ticker")({
-  component: TickerRoom,
-});
-
-function TickerRoom() {
-  const { ticker } = Route.useParams();
-  const navigate = useNavigate();
+export default function TickerRoom() {
+  const params = useParams();
+  const ticker = params?.ticker as string;
+  const router = useRouter();
   const { posts, handlePost } = useSquare();
   const composerRef = useRef<HTMLTextAreaElement>(null);
   
@@ -43,7 +41,6 @@ function TickerRoom() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      // Randomly decide if price changes this tick
       if (Math.random() > 0.4) {
         setLivePrice(prev => {
           const move = prev * (Math.random() * 0.002);
@@ -68,7 +65,7 @@ function TickerRoom() {
       <header className="sticky top-0 z-30 flex items-center justify-between border-b bg-background/65 px-4 py-3 backdrop-blur-2xl backdrop-saturate-150">
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => navigate({ to: "/square" })}
+            onClick={() => router.push("/square")}
             className="grid size-9 place-items-center rounded-full transition-colors hover:bg-card"
             aria-label="Back to The Square"
           >
@@ -134,7 +131,7 @@ function TickerRoom() {
           <PostCard 
             key={p.id} 
             post={p} 
-            onTicker={(t) => navigate({ to: "/square/$ticker", params: { ticker: t } })} 
+            onTicker={(t) => router.push(`/square/${t}`)} 
           />
         ))
       ) : (

@@ -1,5 +1,5 @@
 import { forwardRef, useState, useEffect, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
+import Link from "next/link";
 import {
   BadgeCheck,
   Bell,
@@ -799,10 +799,10 @@ export function RightRail({
       </section>
 
       <nav className="flex flex-wrap gap-x-3 gap-y-1 px-4 pb-6 text-xs text-muted-foreground">
-        <Link to="/privacy" className="hover:underline">
+        <Link href="/privacy" className="hover:underline">
           Privacy
         </Link>
-        <Link to="/terms" className="hover:underline">
+        <Link href="/terms" className="hover:underline">
           Terms
         </Link>
         <span>© {new Date().getFullYear()} Liquidity Pro</span>

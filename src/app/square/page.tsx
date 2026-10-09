@@ -1,13 +1,10 @@
+"use client";
 import { useMemo, useRef, useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/site";
 import { Composer, PostCard } from "@/components/square/parts";
 import { useSquare } from "@/components/square/context";
-
-export const Route = createFileRoute("/square/")({
-  component: SquareIndex,
-});
 
 type Tab = "for-you" | "following" | "verified";
 const TABS: { id: Tab; label: string }[] = [
@@ -16,11 +13,11 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "verified", label: "Verified" },
 ];
 
-function SquareIndex() {
+export default function SquareIndex() {
   const { posts, following, handlePost } = useSquare();
   const [tab, setTab] = useState<Tab>("for-you");
   const composerRef = useRef<HTMLTextAreaElement>(null);
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const feed = useMemo(
     () =>
@@ -33,7 +30,7 @@ function SquareIndex() {
   );
 
   function handleTickerNav(ticker: string) {
-    navigate({ to: "/square/$ticker", params: { ticker } });
+    router.push(`/square/${ticker}`);
   }
 
   return (
