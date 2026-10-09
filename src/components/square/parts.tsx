@@ -1,4 +1,5 @@
-import { forwardRef, useState, useEffect, type ReactNode } from "react";
+import { forwardRef, useState, type ReactNode } from "react";
+import { useTheme } from "next-themes";
 import Link from "next/link";
 import {
   BadgeCheck,
@@ -527,13 +528,13 @@ export function LeftNav({ onCompose }: { onCompose: () => void }) {
       </div>
 
       <div className="mt-auto mb-2 space-y-2">
-        <ThemeToggle />
         <div className="flex items-center gap-3 rounded-full p-2 hover:bg-card">
           <Avatar author={ME} />
           <div className="hidden min-w-0 flex-1 xl:block">
             <p className="truncate text-sm font-semibold">{ME.name}</p>
             <p className="truncate font-mono text-xs text-muted-foreground">@{ME.handle}</p>
           </div>
+          <ThemeToggle />
           <Ellipsis className="hidden size-4 text-muted-foreground xl:block" aria-hidden="true" />
         </div>
       </div>
@@ -542,27 +543,33 @@ export function LeftNav({ onCompose }: { onCompose: () => void }) {
 }
 
 function ThemeToggle() {
-  const [isDark, setIsDark] = useState(() => 
-    typeof document !== "undefined" ? document.documentElement.classList.contains("dark") : true
-  );
-
-  useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, [isDark]);
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
 
   return (
-    <button 
-      onClick={() => setIsDark(!isDark)}
-      className="flex w-full min-h-12 items-center gap-4 rounded-full px-3 text-lg transition-colors hover:bg-card text-foreground/85 xl:pr-5"
+    <button
+      type="button"
+      role="switch"
+      aria-checked={isDark}
+      aria-label="Toggle color theme"
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+      className="relative inline-flex h-8 w-[4.5rem] shrink-0 items-center rounded-full bg-secondary p-1 text-secondary-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
-       <div className="grid size-6 place-items-center">
-         {isDark ? <Sun className="size-6" /> : <Moon className="size-6" />}
-       </div>
-       <span className="hidden xl:inline">Theme</span>
+      <span
+        aria-hidden="true"
+        className={cn(
+          "absolute left-1 top-1 size-6 rounded-full bg-primary transition-transform duration-200",
+          isDark && "translate-x-8",
+        )}
+      />
+      <Sun
+        className={cn("z-10 size-4 flex-1", !isDark && "text-primary-foreground")}
+        aria-hidden="true"
+      />
+      <Moon
+        className={cn("z-10 size-4 flex-1", isDark && "text-primary-foreground")}
+        aria-hidden="true"
+      />
     </button>
   );
 }
@@ -897,26 +904,9 @@ export function TickerTape() {
 }
 
 export function MobileThemeToggle() {
-  const [isDark, setIsDark] = useState(() => 
-    typeof document !== "undefined" ? document.documentElement.classList.contains("dark") : true
-  );
-
-  useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, [isDark]);
-
   return (
-    <button
-      type="button"
-      onClick={() => setIsDark(!isDark)}
-      aria-label="Toggle Theme"
-      className="grid min-h-14 flex-1 place-items-center transition active:scale-[0.96] text-foreground/80"
-    >
-      {isDark ? <Sun className="size-6" /> : <Moon className="size-6" />}
-    </button>
+    <div className="grid min-h-14 flex-1 place-items-center">
+      <ThemeToggle />
+    </div>
   );
 }
