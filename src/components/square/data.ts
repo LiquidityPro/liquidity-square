@@ -237,17 +237,76 @@ export const TICKER_FUNDS: Record<string, CompanyFundamentals> = {
       { headline: "MTN Nigeria faces margin pressure from Naira devaluation", source: "BusinessDay", time: "3h ago" },
       { headline: "Telecom operators push for tariff hike", source: "Punch", time: "6h ago" }
     ]
+  },
+  OANDO: {
+    price: 58.00,
+    change: 9.8,
+    marketCap: "₦720.0B",
+    peRatio: 8.5,
+    volume: "8.3M",
+    news: [
+      { headline: "Oando deepens upstream footprint with asset acquisition", source: "BusinessDay", time: "4h ago" },
+      { headline: "Energy sector rally continues on NGX", source: "Proshare", time: "6h ago" }
+    ]
+  },
+  BUAFOODS: {
+    price: 375.00,
+    change: 2.1,
+    marketCap: "₦6.7T",
+    peRatio: 22.0,
+    volume: "950K",
+    news: [
+      { headline: "BUA Foods expands refinery capacity to meet local demand", source: "Punch", time: "5h ago" },
+      { headline: "Consumer goods sector shows resilience amidst inflation", source: "Nairametrics", time: "8h ago" }
+    ]
+  },
+  TRANSCORP: {
+    price: 12.50,
+    change: 4.6,
+    marketCap: "₦508.0B",
+    peRatio: 9.2,
+    volume: "22.1M",
+    news: [
+      { headline: "Transcorp Power output jumps on plant efficiency gains", source: "Vanguard", time: "2h ago" },
+      { headline: "Conglomerate records stellar earnings growth", source: "BusinessDay", time: "1d ago" }
+    ]
+  },
+  ZENITHBANK: {
+    price: 38.80,
+    change: 1.5,
+    marketCap: "₦1.2T",
+    peRatio: 2.8,
+    volume: "18.6M",
+    news: [
+      { headline: "Zenith Bank leads dividend distribution table", source: "Nairametrics", time: "3h ago" },
+      { headline: "Tier-1 banking capitalisation drive gains momentum", source: "ThisDay", time: "7h ago" }
+    ]
   }
 };
 
+function seedFromString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
 export function getTickerData(ticker: string): CompanyFundamentals {
-  // Provide a default fallback if the ticker isn't in our mock data
-  return TICKER_FUNDS[ticker] || {
-    price: Math.floor(Math.random() * 500) + 10,
-    change: parseFloat((Math.random() * 10 - 5).toFixed(2)),
-    marketCap: `₦${(Math.random() * 5 + 0.1).toFixed(1)}T`,
-    peRatio: parseFloat((Math.random() * 20 + 2).toFixed(1)),
-    volume: `${(Math.random() * 10 + 0.5).toFixed(1)}M`,
+  if (TICKER_FUNDS[ticker]) {
+    return TICKER_FUNDS[ticker];
+  }
+  const seed = seedFromString(ticker);
+  const price = (seed % 450) + 15;
+  const change = ((seed % 140) - 70) / 10;
+  const pe = ((seed % 180) + 20) / 10;
+  return {
+    price,
+    change,
+    marketCap: `₦${((seed % 45) / 10 + 0.5).toFixed(1)}T`,
+    peRatio: pe,
+    volume: `${((seed % 90) / 10 + 1).toFixed(1)}M`,
     news: [
       { headline: `Market buzz surrounds ${ticker} ahead of earnings`, source: "Liquidity News", time: "1h ago" },
       { headline: `${ticker} volume spikes as investors position`, source: "Proshare", time: "4h ago" }

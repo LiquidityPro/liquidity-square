@@ -1,6 +1,5 @@
 import './globals.css'
 import type { Metadata } from 'next'
-import Script from 'next/script'
 import { Fira_Code } from 'next/font/google'
 import { ThemeProvider } from '@/components/theme-provider'
 
@@ -29,16 +28,19 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <Script id="theme-init" strategy="beforeInteractive">
-          {`try {
+        <script
+          id="theme-init"
+          dangerouslySetInnerHTML={{
+            __html: `try {
   const theme = localStorage.getItem('theme') || 'system';
   const dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.classList.toggle('dark', dark);
   document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
 } catch (error) {
   console.error('Unable to initialize the theme.', error);
-}`}
-        </Script>
+}`,
+          }}
+        />
       </head>
       <body className={firaCode.variable}>
         <ThemeProvider>
