@@ -43,9 +43,6 @@ export default function SquareIndex() {
             </div>
             <h1 className="text-xl font-bold">The Square</h1>
           </div>
-          <span className="label-mono flex items-center gap-1.5 text-primary">
-            <span className="size-1.5 animate-blink rounded-full bg-primary" /> Preview
-          </span>
         </div>
         <div role="tablist" aria-label="Feed" className="mt-1 flex">
           {TABS.map((t) => (
