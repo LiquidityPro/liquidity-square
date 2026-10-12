@@ -2,12 +2,12 @@
   "name": "liquidity-square-backend",
   "version": "1.0.0",
   "description": "Express + TypeScript + Prisma PostgreSQL Backend for Liquidity Square",
-  "main": "dist/index.js",
+  "main": "src/index.ts",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "prisma generate && tsc",
-    "start": "node dist/index.js",
+    "start": "node index.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
