@@ -15,7 +15,8 @@
     },
     "backend": {
       "root": "backend",
-      "framework": "express"
+      "framework": "express",
+      "entrypoint": "index.js"
     }
   },
   "rewrites": [
