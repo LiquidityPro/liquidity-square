@@ -16,7 +16,7 @@
     "backend": {
       "root": "backend",
       "framework": "express",
-      "entrypoint": "index.js"
+      "entrypoint": "src/index.ts"
     }
   },
   "rewrites": [
