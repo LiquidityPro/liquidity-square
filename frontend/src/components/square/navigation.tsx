@@ -1,7 +1,7 @@
 "use client";
 
 import { useTheme } from "@/components/theme-provider";
-import { useSession, signOut } from "next-auth/react";
+import { signOut } from "next-auth/react";
 import {
   LuBell as Bell,
   LuBookmark as Bookmark,
@@ -18,7 +18,7 @@ import {
 import { Logo } from "@/components/site";
 import { Avatar } from "./avatar";
 import { cn } from "@/lib/utils";
-import { ME } from "./data";
+import { useCurrentAuthor } from "./use-current-author";
 
 /* Left navigation                                                     */
 /* ------------------------------------------------------------------ */
@@ -33,24 +33,7 @@ const NAV = [
 ];
 
 export function LeftNav({ onCompose }: { onCompose: () => void }) {
-  const { data: session } = useSession();
-  const userName = session?.user?.name || ME.name;
-  const userHandle = session?.user?.email ? session.user.email.split("@")[0] : ME.handle;
-  const initials =
-    userName
-      .split(" ")
-      .filter(Boolean)
-      .map((n) => n[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase() || "LQ";
-
-  const userAvatar = {
-    ...ME,
-    name: userName,
-    handle: userHandle,
-    initials,
-  };
+  const me = useCurrentAuthor();
 
   return (
     <aside className="sticky top-10 hidden h-[calc(100dvh-2.5rem)] min-h-[calc(100dvh-2.5rem)] w-[76px] shrink-0 flex-col justify-between px-2 py-3 sm:flex xl:w-[260px] xl:px-3">
@@ -98,10 +81,10 @@ export function LeftNav({ onCompose }: { onCompose: () => void }) {
 
       <div className="mt-auto mb-2 space-y-2">
         <div className="flex items-center gap-2 rounded-full p-2 hover:bg-card">
-          <Avatar author={userAvatar} />
+          <Avatar author={me} />
           <div className="hidden min-w-0 flex-1 xl:block">
-            <p className="truncate text-sm font-semibold">{userName}</p>
-            <p className="truncate font-mono text-xs text-muted-foreground">@{userHandle}</p>
+            <p className="truncate text-sm font-semibold">{me.name}</p>
+            <p className="truncate font-mono text-xs text-muted-foreground">@{me.handle}</p>
           </div>
           <ThemeToggle />
           <button

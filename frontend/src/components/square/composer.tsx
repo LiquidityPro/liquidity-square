@@ -4,7 +4,8 @@ import { forwardRef, useState } from "react";
 import { LuChartColumn as ChartColumn, LuTrendingDown as TrendingDown, LuTrendingUp as TrendingUp } from "react-icons/lu";
 import { Avatar } from "./avatar";
 import { cn } from "@/lib/utils";
-import { ME, type Stance } from "./data";
+import { type Stance } from "./data";
+import { useCurrentAuthor } from "./use-current-author";
 
 /* Composer                                                            */
 /* ------------------------------------------------------------------ */
@@ -13,6 +14,7 @@ const LIMIT = 280;
 
 export const Composer = forwardRef<HTMLTextAreaElement, { onPost: (body: string, stance: Stance) => void; initialValue?: string }>(
   function Composer({ onPost, initialValue = "" }, ref) {
+    const me = useCurrentAuthor();
     const [body, setBody] = useState(initialValue);
     const [stance, setStance] = useState<Stance>(null);
     const left = LIMIT - body.length;
@@ -28,7 +30,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, { onPost: (body: string,
 
     return (
       <div className="flex gap-3 border-b px-4 py-3">
-        <Avatar author={ME} />
+        <Avatar author={me} />
         <div className="min-w-0 flex-1">
           <label htmlFor="square-composer" className="sr-only">
             Write a post

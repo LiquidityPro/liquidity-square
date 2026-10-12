@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, ReactNode } from "react";
-import { AUTHORS, ME, POSTS, type Post, extractTickers, type Stance } from "./data";
+import { createContext, useContext, useMemo, useState, ReactNode } from "react";
+import { AUTHORS, POSTS, type Post, extractTickers, type Stance } from "./data";
+import { useCurrentAuthor } from "./use-current-author";
 
 type SquareContextType = {
   posts: Post[];
@@ -11,13 +12,16 @@ type SquareContextType = {
 const SquareContext = createContext<SquareContextType | null>(null);
 
 export function SquareProvider({ children }: { children: ReactNode }) {
+  const me = useCurrentAuthor();
   const [posts, setPosts] = useState<Post[]>(POSTS);
-  const [following, setFollowing] = useState<Set<string>>(
-    () => new Set([AUTHORS.analyst1.handle, AUTHORS.macro.handle, ME.handle])
+  const [followed, setFollowed] = useState<Set<string>>(
+    () => new Set([AUTHORS.analyst1.handle, AUTHORS.macro.handle])
   );
+  // The session loads asynchronously, so the user's own handle is added here rather than in initial state.
+  const following = useMemo(() => new Set([...followed, me.handle]), [followed, me.handle]);
 
   const toggleFollow = (handle: string) => {
-    setFollowing((prev) => {
+    setFollowed((prev) => {
       const next = new Set(prev);
       if (next.has(handle)) next.delete(handle);
       else next.add(handle);
@@ -29,7 +33,7 @@ export function SquareProvider({ children }: { children: ReactNode }) {
     setPosts((prev) => [
       {
         id: `local-${prev.length + 1}`,
-        author: ME,
+        author: me,
         time: "now",
         body,
         stance,
