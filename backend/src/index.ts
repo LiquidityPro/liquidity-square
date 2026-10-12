@@ -1,7 +1,7 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { authRouter } from "./routes/auth.js";
+import { authRouter } from "./routes/auth";
 
 dotenv.config();
 
@@ -34,3 +34,8 @@ if (!process.env.VERCEL) {
 }
 
 export default app;
+// @ts-ignore
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = app;
+  module.exports.default = app;
+}
