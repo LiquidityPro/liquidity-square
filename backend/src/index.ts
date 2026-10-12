@@ -26,9 +26,11 @@ app.get("/api/health", (_req: Request, res: Response) => {
 // Auth Routes
 app.use("/api/auth", authRouter);
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Liquidity Square Backend running at http://localhost:${PORT}`);
-});
+// Start server (only in local / non-Vercel environment)
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Liquidity Square Backend running at http://localhost:${PORT}`);
+  });
+}
 
 export default app;
