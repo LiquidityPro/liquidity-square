@@ -98,6 +98,41 @@
     -webkit-font-smoothing: antialiased;
   }
   h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
+
+  a,
+  button,
+  label,
+  summary,
+  select,
+  [role="button"],
+  [role="link"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="menuitemcheckbox"],
+  [role="menuitemradio"],
+  [role="option"],
+  [role="switch"],
+  [role="checkbox"],
+  [role="radio"],
+  [role="combobox"],
+  [role="slider"],
+  [role="spinbutton"],
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"],
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="file"],
+  input[type="range"],
+  input[type="image"] {
+    cursor: pointer;
+  }
+
+  :disabled,
+  [aria-disabled="true"],
+  [data-disabled]:not([data-disabled="false"]) {
+    cursor: not-allowed;
+  }
 }
 
 @layer utilities {

@@ -61,6 +61,18 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   );
 }
 
+function isUsableAccessToken(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0) return false;
+  const parts = value.split(".");
+  if (parts.length !== 3) return false;
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as { exp?: number };
+    return typeof payload.exp !== "number" || payload.exp * 1000 > Date.now();
+  } catch {
+    return false;
+  }
+}
+
 export const authOptions: NextAuthOptions = {
   providers,
   callbacks: {
@@ -118,6 +130,11 @@ export const authOptions: NextAuthOptions = {
         token.firstName = (user as any).firstName;
         token.lastName = (user as any).lastName;
         token.token = (user as any).token;
+      }
+      // Drop the NextAuth cookie if the nested API JWT is missing or expired.
+      // Otherwise the browser looks logged in while every API call returns 401.
+      if (!isUsableAccessToken(token.token)) {
+        return null as unknown as typeof token;
       }
       return token;
     },

@@ -1,3 +1,4 @@
+import { signOutSession } from "@/lib/session";
 import type { Author, NotificationType, Post, Profile, SquareNotification, Stance, TickerSummary } from "./data";
 
 type AuthorDto = {
@@ -42,6 +43,10 @@ async function request<T>(path: string, token: string, method = "GET", body?: un
   });
 
   const data = res.status === 204 ? {} : await res.json().catch(() => ({}));
+  if (res.status === 401) {
+    void signOutSession();
+    throw new Error(data.error || "Invalid or expired token");
+  }
   if (!res.ok) {
     throw new Error(data.error || `Request failed (${res.status})`);
   }
