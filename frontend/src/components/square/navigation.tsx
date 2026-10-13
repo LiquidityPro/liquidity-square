@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/components/theme-provider";
-import { signOut } from "next-auth/react";
+import { signOutSession } from "@/lib/session";
 import type { IconType } from "react-icons";
 import {
   LuBell as Bell,
@@ -146,7 +146,7 @@ export function LeftNav({ onCompose }: { onCompose: () => void }) {
           <button
             type="button"
             title="Sign Out"
-            onClick={() => signOut({ callbackUrl: "/auth" })}
+            onClick={() => void signOutSession()}
             className="hidden rounded-full p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive xl:block"
           >
             <LogOut className="size-4" aria-hidden="true" />

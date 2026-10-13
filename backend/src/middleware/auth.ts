@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { JWT_SECRET } from "../lib/jwt";
 
 export interface AuthenticatedRequest<P = Request["params"]> extends Request<P> {
   userId?: string;
@@ -17,10 +18,9 @@ export function authenticateJwt(
   }
 
   const token = authHeader.split(" ")[1];
-  const secret = process.env.JWT_SECRET || "super-secret-jwt-key-change-in-production";
 
   try {
-    const decoded = jwt.verify(token, secret) as { userId: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
     req.userId = decoded.userId;
     next();
   } catch (err) {

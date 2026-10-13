@@ -1,12 +1,11 @@
 import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { JWT_SECRET } from "../lib/jwt";
 import { prisma } from "../lib/prisma";
 import { authenticateJwt, AuthenticatedRequest } from "../middleware/auth";
 
 export const authRouter = Router();
-
-const JWT_SECRET = process.env.JWT_SECRET || "super-secret-jwt-key-change-in-production";
 
 // POST /api/auth/register
 authRouter.post("/register", async (req: Request, res: Response): Promise<void> => {
