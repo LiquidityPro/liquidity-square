@@ -99,7 +99,6 @@ export function LeftNav({ onCompose }: { onCompose: () => void }) {
             const className = cn(
               "relative flex min-h-12 items-center gap-4 rounded-full px-3 text-lg transition-colors hover:bg-card xl:pr-5",
               active ? "font-bold" : "text-foreground/85",
-              !href && "cursor-default",
             );
             const content = (
               <>
