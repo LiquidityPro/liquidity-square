@@ -6,7 +6,7 @@ import { postsRouter } from "./routes/posts";
 import { tickersRouter } from "./routes/tickers";
 import { usersRouter } from "./routes/users";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -20,6 +20,14 @@ app.use(
   })
 );
 app.use(express.json());
+
+// Vercel's /api/server/* rewrite forwards the original path, so strip the prefix before routing.
+app.use((req, _res, next) => {
+  if (req.url.startsWith("/api/server/")) {
+    req.url = "/api" + req.url.slice("/api/server".length);
+  }
+  next();
+});
 
 // Health check
 app.get("/api/health", (_req: Request, res: Response) => {
@@ -40,8 +48,3 @@ if (!process.env.VERCEL) {
 }
 
 export default app;
-// @ts-ignore
-if (typeof module !== "undefined" && module.exports) {
-  module.exports = app;
-  module.exports.default = app;
-}
