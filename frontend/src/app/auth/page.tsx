@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn, getProviders } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -29,16 +29,29 @@ function AuthForm() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(() => {
-    const err = searchParams.get("error");
-    if (err === "OAuthSignin") {
-      return "Google Sign-In is not configured yet. Please provide GOOGLE_CLIENT_ID in frontend/.env.local or sign in with your email and password.";
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const authError = searchParams.get("error");
+    if (!authError) return;
+
+    if (authError === "OAuthSignin") {
+      setError(
+        "Google Sign-In is not configured yet. Please provide GOOGLE_CLIENT_ID in frontend/.env.local or sign in with your email and password."
+      );
+    } else if (authError === "AccessDenied") {
+      setError(
+        "Google sign-in could not finish setting up your account. Please try again. If this continues, check the backend logs for the account sync error."
+      );
+    } else {
+      setError("Authentication error: " + authError);
     }
-    if (err) {
-      return "Authentication error: " + err;
-    }
-    return null;
-  });
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("error");
+    const query = params.toString();
+    router.replace(query ? `/auth?${query}` : "/auth", { scroll: false });
+  }, [router, searchParams]);
 
   // Form states
   const [firstName, setFirstName] = useState("");

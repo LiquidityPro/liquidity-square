@@ -43,7 +43,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={firaCode.variable}>
+      <body suppressHydrationWarning className={firaCode.variable}>
         <AuthSessionProvider>
           <ThemeProvider>
             {children}
