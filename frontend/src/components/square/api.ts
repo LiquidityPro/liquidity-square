@@ -56,6 +56,7 @@ function toPost(dto: PostDto): Post {
       name: dto.author.name,
       handle: dto.author.handle,
       initials: dto.author.initials,
+      image: dto.author.image,
     },
     time: relativeTime(dto.createdAt),
     body: dto.body,

@@ -27,13 +27,17 @@ export function Avatar({ author, size = "md" }: { author: Author; size?: "sm" | 
     <div
       aria-hidden="true"
       className={cn(
-        "grid shrink-0 place-items-center rounded-full font-mono font-medium text-foreground",
+        "grid shrink-0 place-items-center overflow-hidden rounded-full font-mono font-medium text-foreground",
         tone(author.handle),
         author.verified && "ring-2 ring-primary/60 ring-offset-2 ring-offset-background",
         size === "md" ? "size-10 text-sm" : "size-8 text-xs",
       )}
     >
-      {author.initials}
+      {author.image ? (
+        <img src={author.image} alt="" referrerPolicy="no-referrer" className="size-full object-cover" />
+      ) : (
+        author.initials
+      )}
     </div>
   );
 }

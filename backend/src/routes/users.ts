@@ -35,7 +35,7 @@ usersRouter.post("/:id/follow", async (req: AuthenticatedRequest<{ id: string }>
     }
 
     const target = await prisma.user.count({ where: { id: followingId } });
-    if (!target) {
+    if (target === 0) {
       res.status(404).json({ error: "User not found" });
       return;
     }

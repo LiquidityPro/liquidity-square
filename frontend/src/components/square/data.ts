@@ -9,6 +9,7 @@ export type Author = {
   name: string;
   handle: string;
   initials: string;
+  image?: string | null;
   verified?: boolean;
   role?: string;
 };
