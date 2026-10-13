@@ -13,9 +13,9 @@ import {
   LuEyeOff as EyeOff,
   LuCircleAlert as AlertCircle,
   LuLoader as Loader2,
-  LuTrendingUp as TrendingUp,
   LuShieldCheck as ShieldCheck,
 } from "react-icons/lu";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -191,7 +191,20 @@ function AuthForm() {
       {/* Header */}
       <div className="relative mb-6 text-center">
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
-          <TrendingUp className="h-6 w-6" />
+          <Image
+            src="/liquidity_square_light_icon.svg"
+            alt=""
+            width={48}
+            height={43}
+            className="h-8 w-8 object-cover object-left dark:hidden"
+          />
+          <Image
+            src="/liquidity_square_dark_icon.svg"
+            alt=""
+            width={48}
+            height={43}
+            className="hidden h-8 w-8 object-cover object-left dark:block"
+          />
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Liquidity Square

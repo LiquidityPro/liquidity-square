@@ -89,7 +89,7 @@ export function LeftNav({ onCompose }: { onCompose: () => void }) {
   return (
     <aside className="sticky top-10 hidden h-[calc(100dvh-2.5rem)] min-h-[calc(100dvh-2.5rem)] w-[76px] shrink-0 flex-col justify-between px-2 py-3 sm:flex xl:w-[260px] xl:px-3">
       <div className="flex flex-col items-center gap-1 xl:items-stretch">
-        <div className="mb-5 px-2 [&_span]:hidden xl:[&_span]:inline xl:[&>div]:gap-3 xl:[&_img]:size-10 xl:[&_span]:!text-2xl">
+        <div className="mb-5 px-2">
           <Logo />
         </div>
         <nav aria-label="Square navigation" className="mt-2 flex flex-col items-center gap-1 xl:items-stretch">
