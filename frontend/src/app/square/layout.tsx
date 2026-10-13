@@ -1,8 +1,10 @@
 "use client";
-import { useRef } from "react";
 import { useRouter, useParams, usePathname } from "next/navigation";
 import { LeftNav, MobileBar, RightRail, TickerTape } from "@/components/square/parts";
 import { SquareProvider, useSquare } from "@/components/square/context";
+import { InlineError } from "@/components/square/page-chrome";
+import { Toaster } from "@/components/ui/sonner";
+import { useTheme } from "@/components/theme-provider";
 
 export default function SquareLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -13,7 +15,8 @@ export default function SquareLayout({ children }: { children: React.ReactNode }
 }
 
 function SquareInner({ children }: { children: React.ReactNode }) {
-  const { following, toggleFollow } = useSquare();
+  const { error } = useSquare();
+  const { resolvedTheme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const params = useParams() as Record<string, string | undefined>;
@@ -31,10 +34,6 @@ function SquareInner({ children }: { children: React.ReactNode }) {
     }
   }
 
-  function handleTickerNav(ticker: string) {
-    router.push(`/square/${ticker}`);
-  }
-
   return (
     <div className="flex min-h-screen flex-col">
       <TickerTape />
@@ -42,12 +41,23 @@ function SquareInner({ children }: { children: React.ReactNode }) {
         <LeftNav onCompose={focusComposer} />
 
         <main className="min-h-screen w-full max-w-[600px] border-x pb-24 sm:pb-0">
+          {error && <InlineError message={error} />}
           {children}
         </main>
 
-        <RightRail onTicker={handleTickerNav} following={following} onToggleFollow={toggleFollow} activeTicker={activeTicker} />
+        <RightRail activeTicker={activeTicker} />
         <MobileBar onCompose={focusComposer} />
       </div>
+      <Toaster
+        theme={resolvedTheme}
+        position="bottom-center"
+        toastOptions={{
+          classNames: {
+            toast: "!rounded-full !border-primary/30 !bg-primary !px-5 !py-3 !font-semibold !text-primary-foreground",
+            error: "!border-bear/30 !bg-bear",
+          },
+        }}
+      />
     </div>
   );
 }

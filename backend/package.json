@@ -7,6 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "prisma generate && tsc",
     "start": "node index.js",
+    "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
@@ -24,6 +25,7 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.6.5",
+    "esbuild": "^0.28.2",
     "prisma": "^6.19.3",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3"

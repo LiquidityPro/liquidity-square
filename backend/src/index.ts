@@ -2,8 +2,13 @@ import express, { Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { authRouter } from "./routes/auth";
+import { postsRouter } from "./routes/posts";
+import { tickersRouter } from "./routes/tickers";
+import { usersRouter } from "./routes/users";
+import { searchRouter } from "./routes/search";
+import { notificationsRouter } from "./routes/notifications";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -18,6 +23,14 @@ app.use(
 );
 app.use(express.json());
 
+// Vercel's /api/server/* rewrite forwards the original path, so strip the prefix before routing.
+app.use((req, _res, next) => {
+  if (req.url.startsWith("/api/server/")) {
+    req.url = "/api" + req.url.slice("/api/server".length);
+  }
+  next();
+});
+
 // Health check
 app.get("/api/health", (_req: Request, res: Response) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
@@ -25,6 +38,11 @@ app.get("/api/health", (_req: Request, res: Response) => {
 
 // Auth Routes
 app.use("/api/auth", authRouter);
+app.use("/api/posts", postsRouter);
+app.use("/api/users", usersRouter);
+app.use("/api/tickers", tickersRouter);
+app.use("/api/search", searchRouter);
+app.use("/api/notifications", notificationsRouter);
 
 // Start server (only in local / non-Vercel environment)
 if (!process.env.VERCEL) {
@@ -34,8 +52,3 @@ if (!process.env.VERCEL) {
 }
 
 export default app;
-// @ts-ignore
-if (typeof module !== "undefined" && module.exports) {
-  module.exports = app;
-  module.exports.default = app;
-}
