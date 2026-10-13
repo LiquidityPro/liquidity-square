@@ -1,0 +1,40 @@
+import { Prisma } from "@prisma/client";
+
+export const AUTHOR_SELECT = {
+  id: true,
+  email: true,
+  firstName: true,
+  lastName: true,
+  image: true,
+} satisfies Prisma.UserSelect;
+
+type AuthorRow = Prisma.UserGetPayload<{ select: typeof AUTHOR_SELECT }>;
+
+export type AuthorDto = {
+  id: string;
+  name: string;
+  handle: string;
+  initials: string;
+  image: string | null;
+};
+
+// The handle mirrors the frontend's useCurrentAuthor(): the email's local part.
+export function toAuthorDto(user: AuthorRow): AuthorDto {
+  const name = `${user.firstName} ${user.lastName}`.trim() || user.email;
+  const initials =
+    name
+      .split(" ")
+      .filter(Boolean)
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "LQ";
+
+  return {
+    id: user.id,
+    name,
+    handle: user.email.split("@")[0],
+    initials,
+    image: user.image,
+  };
+}

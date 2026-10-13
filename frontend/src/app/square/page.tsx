@@ -14,7 +14,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export default function SquareIndex() {
-  const { posts, following, handlePost } = useSquare();
+  const { posts, loading, following, handlePost } = useSquare();
   const [tab, setTab] = useState<Tab>("for-you");
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
@@ -70,6 +70,8 @@ export default function SquareIndex() {
 
       {feed.length > 0 ? (
         feed.map((p) => <PostCard key={p.id} post={p} onTicker={handleTickerNav} />)
+      ) : loading ? (
+        <p className="label-mono py-16 text-center text-muted-foreground">Loading posts…</p>
       ) : (
         <div className="px-8 py-16 text-center">
           <p className="font-display text-2xl font-bold">Quiet on the floor</p>
@@ -78,7 +80,7 @@ export default function SquareIndex() {
       )}
 
       {feed.length > 0 && (
-        <p className="label-mono py-10 text-center text-muted-foreground">You're all caught up · placeholder feed</p>
+        <p className="label-mono py-10 text-center text-muted-foreground">You're all caught up</p>
       )}
     </>
   );

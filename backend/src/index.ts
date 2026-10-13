@@ -2,6 +2,9 @@ import express, { Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { authRouter } from "./routes/auth";
+import { postsRouter } from "./routes/posts";
+import { tickersRouter } from "./routes/tickers";
+import { usersRouter } from "./routes/users";
 
 dotenv.config();
 
@@ -25,6 +28,9 @@ app.get("/api/health", (_req: Request, res: Response) => {
 
 // Auth Routes
 app.use("/api/auth", authRouter);
+app.use("/api/posts", postsRouter);
+app.use("/api/users", usersRouter);
+app.use("/api/tickers", tickersRouter);
 
 // Start server (only in local / non-Vercel environment)
 if (!process.env.VERCEL) {

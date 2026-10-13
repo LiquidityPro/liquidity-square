@@ -13,7 +13,7 @@ export default function SquareLayout({ children }: { children: React.ReactNode }
 }
 
 function SquareInner({ children }: { children: React.ReactNode }) {
-  const { following, toggleFollow } = useSquare();
+  const { following, toggleFollow, error } = useSquare();
   const router = useRouter();
   const pathname = usePathname();
   const params = useParams() as Record<string, string | undefined>;
@@ -42,6 +42,11 @@ function SquareInner({ children }: { children: React.ReactNode }) {
         <LeftNav onCompose={focusComposer} />
 
         <main className="min-h-screen w-full max-w-[600px] border-x pb-24 sm:pb-0">
+          {error && (
+            <p role="alert" className="border-b border-bear/30 bg-bear/10 px-4 py-2 text-sm text-bear">
+              {error}
+            </p>
+          )}
           {children}
         </main>
 

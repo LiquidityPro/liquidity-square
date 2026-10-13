@@ -11,7 +11,7 @@ export default function TickerRoom() {
   const params = useParams();
   const ticker = params?.ticker as string;
   const router = useRouter();
-  const { posts, handlePost } = useSquare();
+  const { posts, loading, handlePost } = useSquare();
   const composerRef = useRef<HTMLTextAreaElement>(null);
   
   const feed = useMemo(() => posts.filter((p) => p.tickers.includes(ticker)), [posts, ticker]);
@@ -134,6 +134,8 @@ export default function TickerRoom() {
             onTicker={(t) => router.push(`/square/${t}`)} 
           />
         ))
+      ) : loading ? (
+        <p className="label-mono py-16 text-center text-muted-foreground">Loading posts…</p>
       ) : (
         <div className="px-8 py-16 text-center">
           <p className="font-display text-2xl font-bold">Quiet on the floor</p>

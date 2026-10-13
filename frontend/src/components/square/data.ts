@@ -5,6 +5,7 @@
 export type Stance = "bull" | "bear" | null;
 
 export type Author = {
+  id?: string;
   name: string;
   handle: string;
   initials: string;
@@ -27,6 +28,7 @@ export type Post = {
   replies: number;
   reposts: number;
   likes: number;
+  likedByMe?: boolean;
   poll?: Poll;
   room?: { title: string; analyst: string };
 };

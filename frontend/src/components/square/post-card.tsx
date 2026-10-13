@@ -15,6 +15,7 @@ import {
 import { motion } from "framer-motion";
 import { Avatar, Verified } from "./avatar";
 import { cn } from "@/lib/utils";
+import { useSquare } from "./context";
 import { TICKER_RE, compact, type Post, type Stance } from "./data";
 
 /* Post body with clickable $TICKERS                                   */
@@ -65,7 +66,8 @@ export function StanceTag({ stance }: { stance: Stance }) {
 /* ------------------------------------------------------------------ */
 
 export function PostCard({ post, onTicker }: { post: Post; onTicker: (t: string) => void }) {
-  const [liked, setLiked] = useState(false);
+  const { toggleLike } = useSquare();
+  const liked = !!post.likedByMe;
   const [reposted, setReposted] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -111,11 +113,11 @@ export function PostCard({ post, onTicker }: { post: Post; onTicker: (t: string)
               </motion.div>
             }
             label="Like"
-            count={post.likes + (liked ? 1 : 0)}
+            count={post.likes}
             active={liked}
             activeClass="text-bear"
             hover="bear"
-            onClick={() => setLiked((v) => !v)}
+            onClick={() => toggleLike(post.id)}
           />
           <Action
             icon={

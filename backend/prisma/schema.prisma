@@ -9,6 +9,11 @@ generator client {
   binaryTargets = ["native", "rhel-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
 
+enum Stance {
+  bull
+  bear
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -20,5 +25,64 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  posts     Post[]
+  likes     Like[]
+  following Follow[] @relation("Follower")
+  followers Follow[] @relation("Followed")
+
   @@map("users")
+}
+
+model Ticker {
+  symbol    String   @id // e.g. "DANGCEM", stored without the leading "$"
+  name      String?
+  sector    String?
+  createdAt DateTime @default(now())
+
+  posts Post[]
+
+  @@map("tickers")
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  body      String   @db.VarChar(280)
+  stance    Stance?
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author  User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  tickers Ticker[]
+  likes   Like[]
+
+  @@index([createdAt])
+  @@index([authorId, createdAt])
+  @@map("posts")
+}
+
+model Like {
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([postId])
+  @@map("likes")
+}
+
+model Follow {
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Followed", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+  @@map("follows")
 }
