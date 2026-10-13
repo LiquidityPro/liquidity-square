@@ -4,6 +4,7 @@
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant os-dark (@media (prefers-color-scheme: dark));
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
