@@ -1,17 +1,40 @@
-import Image from 'next/image'
+import Image from "next/image";
 
 export function Logo() {
   return (
     <div
       role="img"
       aria-label="Liquidity Square"
-      className="flex items-center gap-2"
-      style={{ fontWeight: 'bold', fontSize: '1.25rem', letterSpacing: '-0.05em' }}
+      className="flex items-center"
     >
-      <Image src="/favicon.svg" alt="" width={32} height={32} className="shrink-0" />
-      <span>
-        Liquidity<span style={{ color: 'var(--primary-color)' }}>Square</span>
-      </span>
+      <Image
+        src="/liquidity_square_light_icon.svg"
+        alt=""
+        width={48}
+        height={43}
+        className="h-8 w-8 object-cover object-left dark:hidden xl:hidden"
+      />
+      <Image
+        src="/liquidity_square_dark_icon.svg"
+        alt=""
+        width={48}
+        height={43}
+        className="hidden h-8 w-8 object-cover object-left dark:block xl:dark:hidden"
+      />
+      <Image
+        src="/liquidity_square_light_combined.svg"
+        alt=""
+        width={645}
+        height={220}
+        className="hidden h-auto w-38 dark:hidden xl:block"
+      />
+      <Image
+        src="/liquidity_square_dark_combined.svg"
+        alt=""
+        width={645}
+        height={220}
+        className="hidden h-auto w-38 xl:dark:block"
+      />
     </div>
   );
 }
