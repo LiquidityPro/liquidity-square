@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getToken } from "next-auth/jwt";
 
-export async function proxy(req: NextRequest) {
-  const token = await getToken({
-    req,
-    secret: process.env.NEXTAUTH_SECRET || "liquidity-square-super-secret-jwt-key-2026-production-ready",
-  });
+export function proxy(req: NextRequest) {
+  const sessionToken =
+    req.cookies.get("__Secure-next-auth.session-token")?.value ||
+    req.cookies.get("next-auth.session-token")?.value ||
+    req.cookies.get("__Secure-next-auth.session-token.0")?.value ||
+    req.cookies.get("next-auth.session-token.0")?.value;
+
+  const hasSession = Boolean(sessionToken);
 
   const { pathname } = req.nextUrl;
   const isAuthPage = pathname.startsWith("/auth");
@@ -15,19 +17,19 @@ export async function proxy(req: NextRequest) {
 
   // Root redirect
   if (isRoot) {
-    if (token) {
+    if (hasSession) {
       return NextResponse.redirect(new URL("/square", req.url));
     }
     return NextResponse.redirect(new URL("/auth", req.url));
   }
 
   // If already authenticated and visiting /auth
-  if (isAuthPage && token) {
+  if (isAuthPage && hasSession) {
     return NextResponse.redirect(new URL("/square", req.url));
   }
 
   // If not authenticated and visiting protected /square routes
-  if (isSquarePage && !token) {
+  if (isSquarePage && !hasSession) {
     const callbackUrl = encodeURIComponent(pathname + req.nextUrl.search);
     return NextResponse.redirect(new URL(`/auth?callbackUrl=${callbackUrl}`, req.url));
   }

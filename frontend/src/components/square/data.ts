@@ -5,9 +5,11 @@
 export type Stance = "bull" | "bear" | null;
 
 export type Author = {
+  id?: string;
   name: string;
   handle: string;
   initials: string;
+  image?: string | null;
   verified?: boolean;
   role?: string;
 };
@@ -21,14 +23,47 @@ export type Post = {
   id: string;
   author: Author;
   time: string;
+  createdAt?: string;
   body: string;
   stance: Stance;
   tickers: string[];
   replies: number;
   reposts: number;
   likes: number;
+  likedByMe?: boolean;
+  repostedByMe?: boolean;
+  bookmarkedByMe?: boolean;
+  parentId?: string | null;
+  replyTo?: Author | null;
   poll?: Poll;
   room?: { title: string; analyst: string };
+};
+
+export type Profile = Author & {
+  id: string;
+  joinedAt: string;
+  posts: number;
+  followers: number;
+  following: number;
+  followedByMe: boolean;
+};
+
+export type NotificationType = "like" | "follow" | "reply" | "repost";
+
+export type SquareNotification = {
+  id: string;
+  type: NotificationType;
+  read: boolean;
+  time: string;
+  actor: Author;
+  post: { id: string; body: string } | null;
+};
+
+export type TickerSummary = {
+  symbol: string;
+  name: string | null;
+  sector: string | null;
+  postCount: number;
 };
 
 export const ME: Author = { name: "Nonso", handle: "nonso", initials: "NO" };

@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
-export interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest<P = Request["params"]> extends Request<P> {
   userId?: string;
 }
 

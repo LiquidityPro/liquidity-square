@@ -1,52 +1,299 @@
-import { createContext, useContext, useState, ReactNode } from "react";
-import { AUTHORS, ME, POSTS, type Post, extractTickers, type Stance } from "./data";
+"use client";
+
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from "react";
+import { useSession } from "next-auth/react";
+import { toast } from "sonner";
+import { type Author, type Post, extractTickers, type Stance } from "./data";
+import {
+  createPost,
+  deletePost as deletePostRequest,
+  fetchFollowing,
+  fetchUnreadCount,
+  markNotificationsRead,
+  setFollowing,
+  setReaction,
+  type Reaction,
+} from "./api";
+import { useCurrentAuthor } from "./use-current-author";
 
 type SquareContextType = {
-  posts: Post[];
+  token: string | undefined;
+  /** False until the session has resolved. */
+  ready: boolean;
+  error: string | null;
+  postsById: Record<string, Post>;
+  /** Posts published in this session, newest first, so lists can show them before a refetch. */
+  recentIds: string[];
+  cachePosts: (posts: Post[]) => void;
+  publish: (body: string, stance: Stance, parentId?: string | null) => Promise<void>;
+  deletePost: (postId: string) => Promise<boolean>;
+  toggleLike: (postId: string) => void;
+  toggleRepost: (postId: string) => void;
+  toggleBookmark: (postId: string) => void;
+  /** IDs of users the current user follows. */
   following: Set<string>;
-  toggleFollow: (handle: string) => void;
-  handlePost: (body: string, stance: Stance) => void;
+  toggleFollow: (author: Author) => void;
+  unreadCount: number;
+  markAllRead: () => void;
 };
 
 const SquareContext = createContext<SquareContextType | null>(null);
 
-export function SquareProvider({ children }: { children: ReactNode }) {
-  const [posts, setPosts] = useState<Post[]>(POSTS);
-  const [following, setFollowing] = useState<Set<string>>(
-    () => new Set([AUTHORS.analyst1.handle, AUTHORS.macro.handle, ME.handle])
-  );
+const PENDING_PREFIX = "pending-";
+const UNREAD_POLL_MS = 60_000;
 
-  const toggleFollow = (handle: string) => {
-    setFollowing((prev) => {
-      const next = new Set(prev);
-      if (next.has(handle)) next.delete(handle);
-      else next.add(handle);
+export const isPendingPost = (id: string) => id.startsWith(PENDING_PREFIX);
+
+function errorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback;
+}
+
+function without<T>(record: Record<string, T>, keys: string[]): Record<string, T> {
+  const next = { ...record };
+  for (const key of keys) delete next[key];
+  return next;
+}
+
+const REACTION_FIELDS = {
+  like: { flag: "likedByMe", count: "likes" },
+  repost: { flag: "repostedByMe", count: "reposts" },
+  bookmark: { flag: "bookmarkedByMe", count: null },
+} as const satisfies Record<Reaction, { flag: keyof Post; count: keyof Post | null }>;
+
+export function SquareProvider({ children }: { children: ReactNode }) {
+  const me = useCurrentAuthor();
+  const { data: session, status } = useSession();
+  const token = session?.accessToken;
+  const ready = status !== "loading";
+
+  const [postsById, setPostsById] = useState<Record<string, Post>>({});
+  const [recentIds, setRecentIds] = useState<string[]>([]);
+  const [following, setFollowingIds] = useState<Set<string>>(() => new Set());
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const postsRef = useRef(postsById);
+  useEffect(() => {
+    postsRef.current = postsById;
+  }, [postsById]);
+
+  const error = ready && !token ? "Your session has no API token. Sign out and sign in again." : null;
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    fetchFollowing(token)
+      .then((users) => !cancelled && setFollowingIds(new Set(users.flatMap((u) => (u.id ? [u.id] : [])))))
+      .catch((err) => console.error("Failed to load following", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    const refresh = () =>
+      fetchUnreadCount(token)
+        .then((count) => !cancelled && setUnreadCount(count))
+        .catch((err) => console.error("Failed to load unread count", err));
+    refresh();
+    const interval = setInterval(refresh, UNREAD_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [token]);
+
+  const cachePosts = useCallback((posts: Post[]) => {
+    if (posts.length === 0) return;
+    setPostsById((prev) => {
+      const next = { ...prev };
+      for (const post of posts) next[post.id] = post;
       return next;
     });
-  };
+  }, []);
 
-  const handlePost = (body: string, stance: Stance) => {
-    setPosts((prev) => [
-      {
-        id: `local-${prev.length + 1}`,
-        author: ME,
+  const patchPost = useCallback((postId: string, patch: Partial<Post>) => {
+    setPostsById((prev) => (prev[postId] ? { ...prev, [postId]: { ...prev[postId], ...patch } } : prev));
+  }, []);
+
+  const bumpReplies = useCallback((parentId: string | null | undefined, delta: number) => {
+    if (!parentId) return;
+    setPostsById((prev) =>
+      prev[parentId]
+        ? { ...prev, [parentId]: { ...prev[parentId], replies: Math.max(0, prev[parentId].replies + delta) } }
+        : prev,
+    );
+  }, []);
+
+  const publish = useCallback(
+    async (body: string, stance: Stance, parentId: string | null = null) => {
+      if (!token) return;
+      const pendingId = `${PENDING_PREFIX}${Date.now()}`;
+      const pending: Post = {
+        id: pendingId,
+        author: me,
         time: "now",
+        createdAt: new Date().toISOString(),
         body,
         stance,
         tickers: extractTickers(body),
         replies: 0,
         reposts: 0,
         likes: 0,
-      },
-      ...prev,
-    ]);
-  };
+        parentId,
+        replyTo: parentId ? (postsRef.current[parentId]?.author ?? null) : null,
+      };
 
-  return (
-    <SquareContext.Provider value={{ posts, following, toggleFollow, handlePost }}>
-      {children}
-    </SquareContext.Provider>
+      setPostsById((prev) => ({ ...prev, [pendingId]: pending }));
+      setRecentIds((prev) => [pendingId, ...prev]);
+      bumpReplies(parentId, 1);
+
+      try {
+        const created = await createPost(token, body, stance, parentId);
+        setPostsById((prev) => ({ ...without(prev, [pendingId]), [created.id]: created }));
+        setRecentIds((prev) => prev.map((id) => (id === pendingId ? created.id : id)));
+      } catch (err) {
+        setPostsById((prev) => without(prev, [pendingId]));
+        setRecentIds((prev) => prev.filter((id) => id !== pendingId));
+        bumpReplies(parentId, -1);
+        toast.error(errorMessage(err, "Failed to publish post"));
+      }
+    },
+    [token, me, bumpReplies],
   );
+
+  const deletePost = useCallback(
+    async (postId: string) => {
+      const post = postsRef.current[postId];
+      if (!token || !post || isPendingPost(postId)) return false;
+
+      const replyIds = Object.values(postsRef.current)
+        .filter((p) => p.parentId === postId)
+        .map((p) => p.id);
+      const removed = [post, ...replyIds.map((id) => postsRef.current[id])];
+
+      setPostsById((prev) => without(prev, [postId, ...replyIds]));
+      bumpReplies(post.parentId, -1);
+
+      try {
+        await deletePostRequest(token, postId);
+        setRecentIds((prev) => prev.filter((id) => id !== postId));
+        toast.success("Your post was deleted");
+        return true;
+      } catch (err) {
+        cachePosts(removed);
+        bumpReplies(post.parentId, 1);
+        toast.error(errorMessage(err, "Failed to delete post"));
+        return false;
+      }
+    },
+    [token, bumpReplies, cachePosts],
+  );
+
+  const toggleReaction = useCallback(
+    async (kind: Reaction, postId: string) => {
+      const post = postsRef.current[postId];
+      if (!token || !post || isPendingPost(postId)) return;
+
+      const { flag, count } = REACTION_FIELDS[kind];
+      const was = !!post[flag];
+      const apply = (active: boolean, n?: number) =>
+        patchPost(postId, { [flag]: active, ...(count && n !== undefined ? { [count]: n } : {}) });
+
+      apply(!was, count ? post[count] + (was ? -1 : 1) : undefined);
+
+      try {
+        const result = await setReaction(token, postId, kind, !was);
+        apply(result.active, count ? result.count : undefined);
+        if (kind === "bookmark") toast(result.active ? "Added to your bookmarks" : "Removed from your bookmarks");
+      } catch (err) {
+        apply(was, count ? post[count] : undefined);
+        toast.error(errorMessage(err, `Failed to update ${kind}`));
+      }
+    },
+    [token, patchPost],
+  );
+
+  const toggleLike = useCallback((postId: string) => void toggleReaction("like", postId), [toggleReaction]);
+  const toggleRepost = useCallback((postId: string) => void toggleReaction("repost", postId), [toggleReaction]);
+  const toggleBookmark = useCallback((postId: string) => void toggleReaction("bookmark", postId), [toggleReaction]);
+
+  const followingRef = useRef(following);
+  useEffect(() => {
+    followingRef.current = following;
+  }, [following]);
+
+  const toggleFollow = useCallback(
+    async (author: Author) => {
+      const userId = author.id;
+      if (!token || !userId || userId === me.id) return;
+
+      const was = followingRef.current.has(userId);
+      const apply = (on: boolean) =>
+        setFollowingIds((prev) => {
+          const next = new Set(prev);
+          if (on) next.add(userId);
+          else next.delete(userId);
+          return next;
+        });
+
+      apply(!was);
+      try {
+        const result = await setFollowing(token, userId, !was);
+        apply(result.following);
+      } catch (err) {
+        apply(was);
+        toast.error(errorMessage(err, `Failed to ${was ? "unfollow" : "follow"} @${author.handle}`));
+      }
+    },
+    [token, me.id],
+  );
+
+  const markAllRead = useCallback(() => {
+    if (!token) return;
+    setUnreadCount(0);
+    markNotificationsRead(token).catch((err) => console.error("Failed to mark notifications read", err));
+  }, [token]);
+
+  const value = useMemo(
+    () => ({
+      token,
+      ready,
+      error,
+      postsById,
+      recentIds,
+      cachePosts,
+      publish,
+      deletePost,
+      toggleLike,
+      toggleRepost,
+      toggleBookmark,
+      following,
+      toggleFollow,
+      unreadCount,
+      markAllRead,
+    }),
+    [
+      token,
+      ready,
+      error,
+      postsById,
+      recentIds,
+      cachePosts,
+      publish,
+      deletePost,
+      toggleLike,
+      toggleRepost,
+      toggleBookmark,
+      following,
+      toggleFollow,
+      unreadCount,
+      markAllRead,
+    ],
+  );
+
+  return <SquareContext.Provider value={value}>{children}</SquareContext.Provider>;
 }
 
 export function useSquare() {

@@ -1,10 +1,11 @@
 "use client";
-import { useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
+import { useCallback, useRef, useState } from "react";
 import { Logo } from "@/components/site";
-import { Composer, PostCard } from "@/components/square/parts";
+import { Composer, EmptyState, PostFeed, TabBar } from "@/components/square/parts";
 import { useSquare } from "@/components/square/context";
+import { fetchPosts } from "@/components/square/api";
+import type { Post } from "@/components/square/data";
+import { usePostList } from "@/components/square/use-post-list";
 
 type Tab = "for-you" | "following" | "verified";
 const TABS: { id: Tab; label: string }[] = [
@@ -13,25 +14,25 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "verified", label: "Verified" },
 ];
 
+const isTopLevel = (p: Post) => !p.parentId;
+const isVerified = (p: Post) => !!p.author.verified;
+
 export default function SquareIndex() {
-  const { posts, following, handlePost } = useSquare();
+  const { publish } = useSquare();
   const [tab, setTab] = useState<Tab>("for-you");
   const composerRef = useRef<HTMLTextAreaElement>(null);
-  const router = useRouter();
 
-  const feed = useMemo(
-    () =>
-      posts.filter((p) => {
-        if (tab === "following") return following.has(p.author.handle);
-        if (tab === "verified") return !!p.author.verified;
-        return true;
-      }),
-    [posts, tab, following]
+  const fetchPage = useCallback(
+    (token: string, cursor: string | null) =>
+      fetchPosts(token, { cursor, feed: tab === "following" ? "following" : undefined }),
+    [tab],
   );
-
-  function handleTickerNav(ticker: string) {
-    router.push(`/square/${ticker}`);
-  }
+  const list = usePostList({
+    key: tab === "following" ? "home:following" : "home:all",
+    fetchPage,
+    includeRecent: isTopLevel,
+    keep: tab === "verified" ? isVerified : undefined,
+  });
 
   return (
     <>
@@ -44,42 +45,25 @@ export default function SquareIndex() {
             <h1 className="text-xl font-bold">The Square</h1>
           </div>
         </div>
-        <div role="tablist" aria-label="Feed" className="mt-1 flex">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              role="tab"
-              type="button"
-              aria-selected={tab === t.id}
-              onClick={() => setTab(t.id)}
-              className={cn(
-                "relative min-h-12 flex-1 text-sm transition-colors hover:bg-card",
-                tab === t.id ? "font-bold text-foreground" : "font-medium text-muted-foreground"
-              )}
-            >
-              {t.label}
-              {tab === t.id && (
-                <span className="absolute bottom-0 left-1/2 h-1 w-14 -translate-x-1/2 rounded-full bg-primary" />
-              )}
-            </button>
-          ))}
+        <div className="mt-1">
+          <TabBar tabs={TABS} value={tab} onChange={setTab} label="Feed" />
         </div>
       </header>
 
-      <Composer ref={composerRef} onPost={handlePost} />
+      <Composer ref={composerRef} onPost={(body, stance) => publish(body, stance)} />
 
-      {feed.length > 0 ? (
-        feed.map((p) => <PostCard key={p.id} post={p} onTicker={handleTickerNav} />)
-      ) : (
-        <div className="px-8 py-16 text-center">
-          <p className="font-display text-2xl font-bold">Quiet on the floor</p>
-          <p className="mt-2 text-muted-foreground">Follow some voices to fill this tab.</p>
-        </div>
-      )}
-
-      {feed.length > 0 && (
-        <p className="label-mono py-10 text-center text-muted-foreground">You're all caught up · placeholder feed</p>
-      )}
+      <PostFeed
+        list={list}
+        empty={
+          tab === "for-you" ? (
+            <EmptyState title="Quiet on the floor" body="Be the first to share a thesis. Tag a ticker like $DANGCEM." />
+          ) : tab === "following" ? (
+            <EmptyState title="Quiet on the floor" body="Follow some voices to fill this tab." />
+          ) : (
+            <EmptyState title="No verified voices yet" body="Verified analysts and institutions will show up here." />
+          )
+        }
+      />
     </>
   );
 }
