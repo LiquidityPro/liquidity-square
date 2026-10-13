@@ -22,7 +22,13 @@ function tone(seed: string) {
   return AVATAR_TONES[h % AVATAR_TONES.length];
 }
 
-export function Avatar({ author, size = "md" }: { author: Author; size?: "sm" | "md" }) {
+const AVATAR_SIZES = {
+  sm: "size-8 text-xs",
+  md: "size-10 text-sm",
+  lg: "size-24 text-2xl sm:size-32 sm:text-3xl",
+};
+
+export function Avatar({ author, size = "md" }: { author: Author; size?: keyof typeof AVATAR_SIZES }) {
   return (
     <div
       aria-hidden="true"
@@ -30,7 +36,7 @@ export function Avatar({ author, size = "md" }: { author: Author; size?: "sm" | 
         "grid shrink-0 place-items-center overflow-hidden rounded-full font-mono font-medium text-foreground",
         tone(author.handle),
         author.verified && "ring-2 ring-primary/60 ring-offset-2 ring-offset-background",
-        size === "md" ? "size-10 text-sm" : "size-8 text-xs",
+        AVATAR_SIZES[size],
       )}
     >
       {author.image ? (

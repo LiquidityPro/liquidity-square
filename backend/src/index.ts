@@ -5,6 +5,8 @@ import { authRouter } from "./routes/auth";
 import { postsRouter } from "./routes/posts";
 import { tickersRouter } from "./routes/tickers";
 import { usersRouter } from "./routes/users";
+import { searchRouter } from "./routes/search";
+import { notificationsRouter } from "./routes/notifications";
 
 dotenv.config({ quiet: true });
 
@@ -39,6 +41,8 @@ app.use("/api/auth", authRouter);
 app.use("/api/posts", postsRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/tickers", tickersRouter);
+app.use("/api/search", searchRouter);
+app.use("/api/notifications", notificationsRouter);
 
 // Start server (only in local / non-Vercel environment)
 if (!process.env.VERCEL) {

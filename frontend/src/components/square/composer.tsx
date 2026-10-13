@@ -12,8 +12,25 @@ import { useCurrentAuthor } from "./use-current-author";
 
 const LIMIT = 280;
 
-export const Composer = forwardRef<HTMLTextAreaElement, { onPost: (body: string, stance: Stance) => void; initialValue?: string }>(
-  function Composer({ onPost, initialValue = "" }, ref) {
+type ComposerProps = {
+  onPost: (body: string, stance: Stance) => void;
+  initialValue?: string;
+  placeholder?: string;
+  submitLabel?: string;
+  autoFocus?: boolean;
+};
+
+export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
+  function Composer(
+    {
+      onPost,
+      initialValue = "",
+      placeholder = "What's moving? Tag a ticker like $DANGCEM",
+      submitLabel = "Post",
+      autoFocus,
+    },
+    ref,
+  ) {
     const me = useCurrentAuthor();
     const [body, setBody] = useState(initialValue);
     const [stance, setStance] = useState<Stance>(null);
@@ -24,7 +41,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, { onPost: (body: string,
     function submit() {
       if (!canPost) return;
       onPost(body.trim(), stance);
-      setBody("");
+      setBody(initialValue);
       setStance(null);
     }
 
@@ -48,7 +65,8 @@ export const Composer = forwardRef<HTMLTextAreaElement, { onPost: (body: string,
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
             }}
-            placeholder="What's moving? Tag a ticker like $DANGCEM"
+            autoFocus={autoFocus}
+            placeholder={placeholder}
             className="w-full resize-none bg-transparent py-2 text-lg placeholder:text-muted-foreground focus:outline-none"
           />
           <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
@@ -91,7 +109,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, { onPost: (body: string,
                 disabled={!canPost}
                 className="min-h-9 rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground transition hover:opacity-90 disabled:opacity-40 enabled:active:scale-[0.96]"
               >
-                Post
+                {submitLabel}
               </button>
             </div>
           </div>

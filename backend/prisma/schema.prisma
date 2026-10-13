@@ -17,7 +17,7 @@ enum Stance {
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
-  password  String?  // Hashed password (null if signed up with Google OAuth only)
+  password  String? // Hashed password (null if signed up with Google OAuth only)
   firstName String
   lastName  String
   image     String?
@@ -27,8 +27,13 @@ model User {
 
   posts     Post[]
   likes     Like[]
-  following Follow[] @relation("Follower")
-  followers Follow[] @relation("Followed")
+  bookmarks Bookmark[]
+  reposts   Repost[]
+  following Follow[]   @relation("Follower")
+  followers Follow[]   @relation("Followed")
+
+  notifications      Notification[] @relation("NotificationRecipient")
+  actedNotifications Notification[] @relation("NotificationActor")
 
   @@map("users")
 }
@@ -49,16 +54,74 @@ model Post {
   body      String   @db.VarChar(280)
   stance    Stance?
   authorId  String
+  parentId  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  author  User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  tickers Ticker[]
-  likes   Like[]
+  author        User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent        Post?          @relation("Replies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies       Post[]         @relation("Replies")
+  tickers       Ticker[]
+  likes         Like[]
+  bookmarks     Bookmark[]
+  reposts       Repost[]
+  notifications Notification[]
 
   @@index([createdAt])
   @@index([authorId, createdAt])
+  @@index([parentId, createdAt])
   @@map("posts")
+}
+
+model Bookmark {
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([userId, createdAt])
+  @@map("bookmarks")
+}
+
+model Repost {
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([postId])
+  @@map("reposts")
+}
+
+enum NotificationType {
+  like
+  follow
+  reply
+  repost
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  type        NotificationType
+  recipientId String
+  actorId     String
+  postId      String?
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  recipient User  @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor     User  @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+  post      Post? @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, createdAt])
+  @@index([recipientId, readAt])
+  @@map("notifications")
 }
 
 model Like {

@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useTheme } from "@/components/theme-provider";
 import { signOut } from "next-auth/react";
+import type { IconType } from "react-icons";
 import {
   LuBell as Bell,
   LuBookmark as Bookmark,
-  LuEllipsis as Ellipsis,
   LuFeather as Feather,
   LuHash as Hash,
   LuHouse as House,
@@ -18,22 +20,71 @@ import {
 import { Logo } from "@/components/site";
 import { Avatar } from "./avatar";
 import { cn } from "@/lib/utils";
+import { useSquare } from "./context";
 import { useCurrentAuthor } from "./use-current-author";
 
 /* Left navigation                                                     */
 /* ------------------------------------------------------------------ */
 
-const NAV = [
-  { icon: House, label: "Home", active: true },
-  { icon: Hash, label: "Explore" },
-  { icon: Bell, label: "Notifications", badge: "3" },
-  { icon: Lock, label: "Pro rooms", soon: true },
-  { icon: Bookmark, label: "Bookmarks" },
-  { icon: User, label: "Profile" },
-];
+export type NavItem = {
+  icon: IconType;
+  label: string;
+  href?: string;
+  isActive?: (pathname: string) => boolean;
+  badge?: number;
+  soon?: boolean;
+};
+
+const isProfilePath = (pathname: string, href?: string) => !!href && pathname === href;
+
+/** Ticker rooms and post threads live under /square too, so they count as Home. */
+function isHomePath(pathname: string) {
+  return !/^\/square\/(explore|notifications|bookmarks|u)(\/|$)/.test(pathname);
+}
+
+export function useNavItems(): NavItem[] {
+  const me = useCurrentAuthor();
+  const { unreadCount } = useSquare();
+  const profileHref = me.id ? `/square/u/${me.id}` : undefined;
+
+  return [
+    { icon: House, label: "Home", href: "/square", isActive: isHomePath },
+    { icon: Hash, label: "Explore", href: "/square/explore" },
+    { icon: Bell, label: "Notifications", href: "/square/notifications", badge: unreadCount },
+    { icon: Lock, label: "Pro rooms", soon: true },
+    { icon: Bookmark, label: "Bookmarks", href: "/square/bookmarks" },
+    {
+      icon: User,
+      label: "Profile",
+      href: profileHref,
+      isActive: (pathname) => isProfilePath(pathname, profileHref),
+    },
+  ];
+}
+
+export function navItemActive(item: NavItem, pathname: string) {
+  if (!item.href) return false;
+  return item.isActive ? item.isActive(pathname) : pathname === item.href || pathname.startsWith(`${item.href}/`);
+}
+
+export function NavBadge({ count, className }: { count?: number; className?: string }) {
+  if (!count) return null;
+  return (
+    <span
+      className={cn(
+        "absolute grid min-w-4 place-items-center rounded-full bg-primary px-1 font-mono text-[0.6rem] font-bold text-primary-foreground",
+        className,
+      )}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
 
 export function LeftNav({ onCompose }: { onCompose: () => void }) {
   const me = useCurrentAuthor();
+  const pathname = usePathname();
+  const items = useNavItems();
 
   return (
     <aside className="sticky top-10 hidden h-[calc(100dvh-2.5rem)] min-h-[calc(100dvh-2.5rem)] w-[76px] shrink-0 flex-col justify-between px-2 py-3 sm:flex xl:w-[260px] xl:px-3">
@@ -42,31 +93,37 @@ export function LeftNav({ onCompose }: { onCompose: () => void }) {
           <Logo />
         </div>
         <nav aria-label="Square navigation" className="flex flex-col items-center gap-1 xl:items-stretch">
-          {NAV.map(({ icon: Icon, label, active, badge, soon }) => (
-            <button
-              key={label}
-              type="button"
-              aria-current={active ? "page" : undefined}
-              title={active ? label : `${label} — coming soon`}
-              className={cn(
-                "relative flex min-h-12 items-center gap-4 rounded-full px-3 text-lg transition-colors hover:bg-card xl:pr-5",
-                active ? "font-bold" : "text-foreground/85",
-              )}
-            >
-              <Icon className={cn("size-6", active && "text-primary")} strokeWidth={active ? 2.5 : 2} />
-              <span className="hidden xl:inline">{label}</span>
-              {soon && (
-                <span className="label-mono hidden rounded border border-primary/40 px-1.5 !text-[0.6rem] text-primary xl:inline">
-                  Soon
-                </span>
-              )}
-              {badge && (
-                <span className="absolute left-7 top-2 grid min-w-4 place-items-center rounded-full bg-primary px-1 font-mono text-[0.6rem] font-bold text-primary-foreground">
-                  {badge}
-                </span>
-              )}
-            </button>
-          ))}
+          {items.map((item) => {
+            const { icon: Icon, label, href, badge, soon } = item;
+            const active = navItemActive(item, pathname);
+            const className = cn(
+              "relative flex min-h-12 items-center gap-4 rounded-full px-3 text-lg transition-colors hover:bg-card xl:pr-5",
+              active ? "font-bold" : "text-foreground/85",
+              !href && "cursor-default",
+            );
+            const content = (
+              <>
+                <Icon className={cn("size-6", active && "text-primary")} strokeWidth={active ? 2.5 : 2} />
+                <span className="hidden xl:inline">{label}</span>
+                {soon && (
+                  <span className="label-mono hidden rounded border border-primary/40 px-1.5 !text-[0.6rem] text-primary xl:inline">
+                    Soon
+                  </span>
+                )}
+                <NavBadge count={badge} className="left-7 top-2" />
+              </>
+            );
+
+            return href ? (
+              <Link key={label} href={href} aria-current={active ? "page" : undefined} title={label} className={className}>
+                {content}
+              </Link>
+            ) : (
+              <button key={label} type="button" title={`${label} — coming soon`} className={className}>
+                {content}
+              </button>
+            );
+          })}
         </nav>
         <button
           type="button"

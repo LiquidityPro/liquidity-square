@@ -1,4 +1,4 @@
-import type { Post, Stance } from "./data";
+import type { Author, NotificationType, Post, Profile, SquareNotification, Stance, TickerSummary } from "./data";
 
 type AuthorDto = {
   id: string;
@@ -15,9 +15,21 @@ type PostDto = {
   stance: Stance;
   tickers: string[];
   likes: number;
+  reposts: number;
+  replies: number;
   likedByMe: boolean;
+  repostedByMe: boolean;
+  bookmarkedByMe: boolean;
+  parentId: string | null;
+  replyTo: AuthorDto | null;
   createdAt: string;
 };
+
+type PageDto = { posts: PostDto[]; nextCursor: string | null };
+
+export type PostPage = { posts: Post[]; nextCursor: string | null };
+
+export type Reaction = "like" | "repost" | "bookmark";
 
 async function request<T>(path: string, token: string, method = "GET", body?: unknown): Promise<T> {
   const res = await fetch(`/api/server${path}`, {
@@ -36,7 +48,12 @@ async function request<T>(path: string, token: string, method = "GET", body?: un
   return data as T;
 }
 
-function relativeTime(iso: string): string {
+function query(params: Record<string, string | undefined | null>): string {
+  const entries = Object.entries(params).filter((e): e is [string, string] => !!e[1]);
+  return entries.length ? `?${new URLSearchParams(entries)}` : "";
+}
+
+export function relativeTime(iso: string): string {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
   if (seconds < 60) return "now";
   const minutes = Math.floor(seconds / 60);
@@ -48,41 +65,182 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+function toAuthor(dto: AuthorDto): Author {
+  return { id: dto.id, name: dto.name, handle: dto.handle, initials: dto.initials, image: dto.image };
+}
+
 function toPost(dto: PostDto): Post {
   return {
     id: dto.id,
-    author: {
-      id: dto.author.id,
-      name: dto.author.name,
-      handle: dto.author.handle,
-      initials: dto.author.initials,
-      image: dto.author.image,
-    },
+    author: toAuthor(dto.author),
     time: relativeTime(dto.createdAt),
+    createdAt: dto.createdAt,
     body: dto.body,
     stance: dto.stance,
     tickers: dto.tickers,
-    replies: 0,
-    reposts: 0,
+    replies: dto.replies,
+    reposts: dto.reposts,
     likes: dto.likes,
     likedByMe: dto.likedByMe,
+    repostedByMe: dto.repostedByMe,
+    bookmarkedByMe: dto.bookmarkedByMe,
+    parentId: dto.parentId,
+    replyTo: dto.replyTo ? toAuthor(dto.replyTo) : null,
   };
 }
 
-export async function fetchPosts(token: string): Promise<Post[]> {
-  const { posts } = await request<{ posts: PostDto[] }>("/posts", token);
-  return posts.map(toPost);
+function toPage({ posts, nextCursor }: PageDto): PostPage {
+  return { posts: posts.map(toPost), nextCursor };
 }
 
-export async function createPost(token: string, body: string, stance: Stance): Promise<Post> {
-  const { post } = await request<{ post: PostDto }>("/posts", token, "POST", { body, stance });
+/* Posts                                                               */
+/* ------------------------------------------------------------------ */
+
+export type PostFilters = {
+  ticker?: string;
+  feed?: "following";
+  author?: string;
+  likedBy?: string;
+  cursor?: string | null;
+};
+
+export async function fetchPosts(token: string, filters: PostFilters = {}): Promise<PostPage> {
+  return toPage(await request<PageDto>(`/posts${query(filters)}`, token));
+}
+
+export async function fetchPost(token: string, id: string): Promise<{ post: Post; parent: Post | null }> {
+  const { post, parent } = await request<{ post: PostDto; parent: PostDto | null }>(
+    `/posts/${encodeURIComponent(id)}`,
+    token,
+  );
+  return { post: toPost(post), parent: parent ? toPost(parent) : null };
+}
+
+export async function fetchReplies(token: string, id: string, cursor?: string | null): Promise<PostPage> {
+  return toPage(await request<PageDto>(`/posts/${encodeURIComponent(id)}/replies${query({ cursor })}`, token));
+}
+
+export async function createPost(
+  token: string,
+  body: string,
+  stance: Stance,
+  parentId?: string | null,
+): Promise<Post> {
+  const { post } = await request<{ post: PostDto }>("/posts", token, "POST", { body, stance, parentId });
   return toPost(post);
 }
 
-export function setPostLiked(token: string, postId: string, liked: boolean) {
-  return request<{ liked: boolean; likes: number }>(
-    `/posts/${encodeURIComponent(postId)}/like`,
+export async function deletePost(token: string, id: string): Promise<void> {
+  await request(`/posts/${encodeURIComponent(id)}`, token, "DELETE");
+}
+
+export function setReaction(token: string, postId: string, kind: Reaction, on: boolean) {
+  return request<{ active: boolean; count: number }>(
+    `/posts/${encodeURIComponent(postId)}/${kind}`,
     token,
-    liked ? "POST" : "DELETE",
+    on ? "POST" : "DELETE",
   );
+}
+
+/* Users                                                               */
+/* ------------------------------------------------------------------ */
+
+export async function fetchProfile(token: string, id: string): Promise<Profile> {
+  const { profile } = await request<{ profile: AuthorDto & Omit<Profile, keyof Author> }>(
+    `/users/${encodeURIComponent(id)}`,
+    token,
+  );
+  return { ...profile, ...toAuthor(profile), id: profile.id };
+}
+
+export async function fetchFollowing(token: string): Promise<Author[]> {
+  const { users } = await request<{ users: AuthorDto[] }>("/users/me/following", token);
+  return users.map(toAuthor);
+}
+
+export async function fetchSuggested(token: string, limit = 5): Promise<Author[]> {
+  const { users } = await request<{ users: AuthorDto[] }>(`/users/suggested${query({ limit: String(limit) })}`, token);
+  return users.map(toAuthor);
+}
+
+export function setFollowing(token: string, userId: string, on: boolean) {
+  return request<{ following: boolean; followers: number }>(
+    `/users/${encodeURIComponent(userId)}/follow`,
+    token,
+    on ? "POST" : "DELETE",
+  );
+}
+
+export async function fetchBookmarks(token: string, cursor?: string | null): Promise<PostPage> {
+  return toPage(await request<PageDto>(`/users/me/bookmarks${query({ cursor })}`, token));
+}
+
+/* Tickers & search                                                    */
+/* ------------------------------------------------------------------ */
+
+export async function fetchTickers(token: string, limit = 10): Promise<TickerSummary[]> {
+  const { tickers } = await request<{ tickers: TickerSummary[] }>(`/tickers${query({ limit: String(limit) })}`, token);
+  return tickers;
+}
+
+export type TickerDetail = TickerSummary & { bulls: number; bears: number };
+
+export async function fetchTicker(token: string, symbol: string): Promise<TickerDetail> {
+  const { ticker } = await request<{ ticker: TickerDetail }>(
+    `/tickers/${encodeURIComponent(symbol.replace(/^\$/, "").toUpperCase())}`,
+    token,
+  );
+  return ticker;
+}
+
+export type SearchResults = { tickers: TickerSummary[]; users: Author[]; posts: Post[] };
+
+export async function search(token: string, q: string): Promise<SearchResults> {
+  const res = await request<{ tickers: TickerSummary[]; users: AuthorDto[]; posts: PostDto[] }>(
+    `/search${query({ q })}`,
+    token,
+  );
+  return { tickers: res.tickers, users: res.users.map(toAuthor), posts: res.posts.map(toPost) };
+}
+
+/* Notifications                                                       */
+/* ------------------------------------------------------------------ */
+
+type NotificationDto = {
+  id: string;
+  type: NotificationType;
+  read: boolean;
+  createdAt: string;
+  actor: AuthorDto;
+  post: { id: string; body: string } | null;
+};
+
+export async function fetchNotifications(
+  token: string,
+  cursor?: string | null,
+): Promise<{ notifications: SquareNotification[]; nextCursor: string | null }> {
+  const { notifications, nextCursor } = await request<{ notifications: NotificationDto[]; nextCursor: string | null }>(
+    `/notifications${query({ cursor })}`,
+    token,
+  );
+  return {
+    notifications: notifications.map((n) => ({
+      id: n.id,
+      type: n.type,
+      read: n.read,
+      time: relativeTime(n.createdAt),
+      actor: toAuthor(n.actor),
+      post: n.post,
+    })),
+    nextCursor,
+  };
+}
+
+export async function fetchUnreadCount(token: string): Promise<number> {
+  const { count } = await request<{ count: number }>("/notifications/unread-count", token);
+  return count;
+}
+
+export async function markNotificationsRead(token: string): Promise<void> {
+  await request("/notifications/read", token, "POST");
 }
