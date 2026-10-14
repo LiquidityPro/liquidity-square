@@ -11,7 +11,6 @@ export function proxy(req: NextRequest) {
   const hasSession = Boolean(sessionToken);
 
   const { pathname } = req.nextUrl;
-  const isAuthPage = pathname.startsWith("/auth");
   const isSquarePage = pathname.startsWith("/square");
   const isRoot = pathname === "/";
 
@@ -23,10 +22,9 @@ export function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL("/auth", req.url));
   }
 
-  // If already authenticated and visiting /auth
-  if (isAuthPage && hasSession) {
-    return NextResponse.redirect(new URL("/square", req.url));
-  }
+  // Leave /auth alone. Sending a cookie-holder straight to /square fights
+  // sign-out: the cookie is often still present for that one request, so the
+  // browser bounces /square -> /auth -> /square and the session request is aborted.
 
   // If not authenticated and visiting protected /square routes
   if (isSquarePage && !hasSession) {

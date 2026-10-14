@@ -47,15 +47,17 @@ function Editorial() {
   return (
     <div className="relative hidden md:block">
       <aside className="sticky top-0 h-dvh overflow-hidden bg-[#F4F7F2] os-dark:bg-[#0B1210]">
-        <Image
-          src="/auth-panel.jpg"
-          alt=""
-          fill
-          priority
-          unoptimized
-          sizes="50vw"
-          className="object-cover object-center os-dark:brightness-[0.42] os-dark:saturate-125"
-        />
+        <div className="absolute inset-0">
+          <Image
+            src="/auth-panel.jpg"
+            alt=""
+            fill
+            priority
+            unoptimized
+            sizes="50vw"
+            className="object-cover object-center os-dark:brightness-[0.42] os-dark:saturate-125"
+          />
+        </div>
         <div className="pointer-events-none absolute inset-0 bg-[#04110c]/0 os-dark:bg-[#04110c]/45" />
         <div className="absolute left-7 top-14 z-10 lg:left-9 lg:top-16">
           <Wordmark />

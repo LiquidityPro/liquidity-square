@@ -88,7 +88,7 @@ export function LeftNav({ onCompose }: { onCompose: () => void }) {
   const items = useNavItems();
 
   return (
-    <aside className="sticky top-10 hidden h-[calc(100dvh-2.5rem)] min-h-[calc(100dvh-2.5rem)] w-[76px] shrink-0 flex-col justify-between px-2 py-3 sm:flex xl:w-[260px] xl:px-3">
+    <aside className="sticky top-10 hidden h-[calc(100dvh-2.5rem)] min-h-[calc(100dvh-2.5rem)] w-[76px] shrink-0 flex-col justify-between overflow-x-clip px-2 py-3 sm:flex xl:w-[260px] xl:px-3">
       <div className="flex flex-col items-center gap-1 xl:items-stretch">
         <div className="mb-5 px-2">
           <Logo />
@@ -136,15 +136,16 @@ export function LeftNav({ onCompose }: { onCompose: () => void }) {
         </button>
       </div>
 
-      <div className="mt-auto mb-2 space-y-2">
+      <div className="mt-auto mb-2 flex flex-col items-center gap-2 xl:items-stretch">
         <InstallAppButton />
-        <div className="flex items-center gap-2 rounded-full p-2 hover:bg-card">
+        <div className="flex flex-col items-center gap-2 xl:flex-row xl:rounded-full xl:p-2 xl:hover:bg-card">
           <Avatar author={me} />
           <div className="hidden min-w-0 flex-1 xl:block">
             <p className="truncate text-sm font-semibold">{me.name}</p>
             <p className="truncate font-mono text-xs text-muted-foreground">@{me.handle}</p>
           </div>
-          <ThemeToggle />
+          <ThemeToggle compact className="xl:hidden" />
+          <ThemeToggle className="hidden xl:inline-flex" />
           <button
             type="button"
             title="Sign Out"
@@ -159,9 +160,27 @@ export function LeftNav({ onCompose }: { onCompose: () => void }) {
   );
 }
 
-export function ThemeToggle() {
+export function ThemeToggle({ compact = false, className }: { compact?: boolean; className?: string }) {
   const { resolvedTheme, setTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
+
+  if (compact) {
+    const Icon = isDark ? Moon : Sun;
+    return (
+      <button
+        type="button"
+        aria-label="Toggle color theme"
+        aria-pressed={isDark}
+        onClick={() => setTheme(isDark ? "light" : "dark")}
+        className={cn(
+          "grid size-10 place-items-center rounded-full text-foreground transition-colors hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+          className,
+        )}
+      >
+        <Icon className="size-5" aria-hidden="true" />
+      </button>
+    );
+  }
 
   return (
     <button
@@ -170,7 +189,10 @@ export function ThemeToggle() {
       aria-checked={isDark}
       aria-label="Toggle color theme"
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="relative inline-flex h-8 w-[4.5rem] shrink-0 items-center rounded-full bg-secondary p-1 text-secondary-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className={cn(
+        "relative inline-flex h-8 w-[4.5rem] shrink-0 items-center rounded-full bg-secondary p-1 text-secondary-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        className,
+      )}
     >
       <span
         aria-hidden="true"

@@ -9,6 +9,7 @@ import { searchRouter } from "./routes/search";
 import { notificationsRouter } from "./routes/notifications";
 import { liveRouter } from "./routes/live";
 import { pushRouter } from "./routes/push";
+import { ensureListedTickers } from "./lib/listed-tickers";
 
 dotenv.config({ quiet: true });
 
@@ -47,6 +48,8 @@ app.use("/api/search", searchRouter);
 app.use("/api/notifications", notificationsRouter);
 app.use("/api/live", liveRouter);
 app.use("/api/push", pushRouter);
+
+void ensureListedTickers();
 
 // Start server (only in local / non-Vercel environment)
 if (!process.env.VERCEL) {

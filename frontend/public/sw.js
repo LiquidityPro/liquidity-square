@@ -8,8 +8,6 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-self.addEventListener("fetch", () => {});
-
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : {};
   const title = typeof data.title === "string" && data.title ? data.title : "Liquidity Square";

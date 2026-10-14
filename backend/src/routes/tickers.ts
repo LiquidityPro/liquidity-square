@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { Stance } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { authenticateJwt } from "../middleware/auth";
+import { ensureListedTickers } from "../lib/listed-tickers";
 
 export const tickersRouter = Router();
 
@@ -21,6 +22,7 @@ const TICKER_SELECT = {
 tickersRouter.get("/", async (req: Request, res: Response): Promise<void> => {
   try {
     const limit = Math.min(Math.max(Number(req.query.limit) || DEFAULT_LIMIT, 1), MAX_LIMIT);
+    await ensureListedTickers();
 
     const tickers = await prisma.ticker.findMany({
       orderBy: [{ posts: { _count: "desc" } }, { symbol: "asc" }],
