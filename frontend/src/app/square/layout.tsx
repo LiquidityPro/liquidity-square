@@ -24,6 +24,7 @@ function SquareInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const params = useParams() as Record<string, string | undefined>;
   const activeTicker = params?.ticker;
+  const inChat = /^\/square\/messages\/.+/.test(pathname);
   const [railOpen, setRailOpen] = useState(false);
 
   useEffect(() => {
@@ -52,7 +53,7 @@ function SquareInner({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className={inChat ? "flex h-dvh flex-col overflow-hidden" : "flex min-h-screen flex-col"}>
       <TickerTape onOpen={() => setRailOpen(true)} />
       <Sheet open={railOpen} onOpenChange={setRailOpen}>
         <SheetContent
@@ -66,10 +67,16 @@ function SquareInner({ children }: { children: React.ReactNode }) {
           <RightRail activeTicker={activeTicker} variant="sheet" />
         </SheetContent>
       </Sheet>
-      <div className="mx-auto flex w-full max-w-[1280px] flex-1 justify-center">
+      <div className={`mx-auto flex w-full max-w-[1280px] flex-1 justify-center ${inChat ? "min-h-0" : ""}`}>
         <LeftNav onCompose={focusComposer} />
 
-        <main className="min-h-screen w-full max-w-[600px] border-x pb-24 sm:pb-0">
+        <main
+          className={
+            inChat
+              ? "flex h-full min-h-0 w-full max-w-[600px] flex-col overflow-hidden border-x pb-[calc(3.5rem+env(safe-area-inset-bottom))] sm:pb-0"
+              : "min-h-screen w-full max-w-[600px] border-x pb-24 sm:pb-0"
+          }
+        >
           <PushPrompt />
           {error && <InlineError message={error} />}
           {children}

@@ -57,6 +57,8 @@ type SquareContextType = {
   setUnreadMessages: (count: number) => void;
   /** Direct messages that arrived while this session was open, oldest first. */
   incomingMessages: ChatMessage[];
+  /** When the other person last opened each conversation. */
+  peerReads: Record<string, string>;
   markAllRead: () => void;
 };
 
@@ -106,6 +108,7 @@ export function SquareProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [incomingMessages, setIncomingMessages] = useState<ChatMessage[]>([]);
+  const [peerReads, setPeerReads] = useState<Record<string, string>>({});
   const readEpoch = useRef(0);
 
   const postsRef = useRef(postsById);
@@ -133,6 +136,7 @@ export function SquareProvider({ children }: { children: ReactNode }) {
     setIncomingIds([]);
     setIncomingNotifications([]);
     setIncomingMessages([]);
+    setPeerReads({});
   }, [token]);
 
   const cachePosts = useCallback((posts: Post[]) => {
@@ -210,6 +214,16 @@ export function SquareProvider({ children }: { children: ReactNode }) {
             const fresh = update.messages.filter((item) => !seen.has(item.id));
             if (fresh.length === 0) return prev;
             return [...prev, ...fresh].slice(-100);
+          });
+        }
+        if (update.reads.length > 0) {
+          setPeerReads((prev) => {
+            const next = { ...prev };
+            for (const read of update.reads) {
+              const current = next[read.conversationId];
+              if (!current || Date.parse(read.readAt) > Date.parse(current)) next[read.conversationId] = read.readAt;
+            }
+            return next;
           });
         }
         if (epochAtStart === readEpoch.current) setUnreadCount(update.unreadCount);
@@ -415,6 +429,7 @@ export function SquareProvider({ children }: { children: ReactNode }) {
       unreadMessages,
       setUnreadMessages,
       incomingMessages,
+      peerReads,
       markAllRead,
     }),
     [
@@ -426,6 +441,7 @@ export function SquareProvider({ children }: { children: ReactNode }) {
       incomingIds,
       incomingNotifications,
       incomingMessages,
+      peerReads,
       cachePosts,
       publish,
       deletePost,

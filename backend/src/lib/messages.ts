@@ -97,6 +97,15 @@ export async function appendMessage(conversationId: string, senderId: string, bo
   });
 }
 
+/** When the other person last opened this thread. */
+export async function peerReadAt(conversationId: string, viewerId: string) {
+  const read = await prisma.conversationRead.findFirst({
+    where: { conversationId, userId: { not: viewerId } },
+    select: { lastReadAt: true },
+  });
+  return read?.lastReadAt.toISOString() ?? null;
+}
+
 export async function requireMembership(conversationId: string, userId: string) {
   const conversation = await prisma.conversation.findFirst({
     where: { id: conversationId, OR: [{ userAId: userId }, { userBId: userId }] },

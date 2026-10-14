@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { LuCheck as Check, LuCheckCheck as CheckCheck } from "react-icons/lu";
 import { EmptyState, PageHeader } from "./parts";
 import { TickerText } from "./note-row";
 import { cn } from "@/lib/utils";
@@ -21,10 +22,11 @@ import {
 import type { Author } from "./data";
 
 const LIMIT = 1000;
-/** Fills the column under the tape, and clears the mobile bar. */
-const threadFrame = "flex min-h-[calc(100dvh-6.5rem)] flex-col sm:min-h-[calc(100dvh-2.5rem)]";
+/** Fills the locked chat column. Only the message list inside it scrolls. */
+const threadFrame = "flex h-full min-h-0 flex-1 flex-col overflow-hidden";
 
-function Bubble({ message }: { message: ChatMessage }) {
+function Bubble({ message, read }: { message: ChatMessage; read?: boolean }) {
+  const receipt = message.failed ? "failed" : message.pending ? "sending" : read ? "read" : "sent";
   return (
     <div className={cn("flex", message.mine ? "justify-end" : "justify-start")}>
       <div
@@ -40,15 +42,31 @@ function Bubble({ message }: { message: ChatMessage }) {
         </p>
         <p
           className={cn(
-            "mt-1 font-mono text-[0.65rem]",
-            message.mine ? "text-primary-foreground/70" : "text-muted-foreground",
+            "mt-1 flex items-center gap-1 font-mono text-[0.65rem]",
+            message.mine ? "justify-end text-primary-foreground/80" : "text-muted-foreground",
           )}
         >
-          {message.failed ? "Not sent" : message.pending ? "Sending" : relativeTime(message.createdAt)}
+          <span>{message.failed ? "Not sent" : message.pending ? "Sending" : relativeTime(message.createdAt)}</span>
+          {message.mine && receipt === "sent" && <Check className="size-3.5 shrink-0" aria-label="Received" />}
+          {message.mine && receipt === "read" && <CheckCheck className="size-3.5 shrink-0" aria-label="Read" />}
         </p>
       </div>
     </div>
   );
+}
+
+function laterIso(a: string | null | undefined, b: string | null | undefined) {
+  if (!a) return b ?? null;
+  if (!b) return a;
+  return Date.parse(a) >= Date.parse(b) ? a : b;
+}
+
+function messageIsRead(message: ChatMessage, peerReadAt: string | null) {
+  if (!message.mine || message.pending || message.failed || !peerReadAt) return false;
+  const seenAt = Date.parse(peerReadAt);
+  const sentAt = Date.parse(message.createdAt);
+  if (Number.isNaN(seenAt) || Number.isNaN(sentAt)) return false;
+  return sentAt <= seenAt;
 }
 
 function Composer({
@@ -79,7 +97,7 @@ function Composer({
         event.preventDefault();
         submit();
       }}
-      className="sticky bottom-16 z-30 border-t bg-background px-4 py-3 sm:bottom-0"
+      className="shrink-0 border-t bg-background px-4 py-3"
     >
       <label htmlFor="dm-draft" className="sr-only">
         Message @{handle}
@@ -119,25 +137,28 @@ function Composer({
 }
 
 export function ConversationView({ conversationId }: { conversationId: string }) {
-  const { token, ready, incomingMessages, setUnreadMessages } = useSquare();
+  const { token, ready, incomingMessages, peerReads, setUnreadMessages } = useSquare();
   const [peer, setPeer] = useState<Author | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loadedReadAt, setLoadedReadAt] = useState<string | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "missing" | "error">("loading");
   const [loadingOlder, setLoadingOlder] = useState(false);
-  const endRef = useRef<HTMLDivElement>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
 
   useEffect(() => {
     if (!ready || !token) return;
     let cancelled = false;
     setStatus("loading");
+    setLoadedReadAt(null);
     fetchThread(token, conversationId)
       .then((page) => {
         if (cancelled) return;
         setPeer(page.with);
         setMessages(page.messages);
         setCursor(page.nextCursor);
+        setLoadedReadAt(page.peerReadAt);
         setStatus("ready");
         stick.current = true;
       })
@@ -169,24 +190,30 @@ export function ConversationView({ conversationId }: { conversationId: string })
   }, [incomingMessages, conversationId]);
 
   useEffect(() => {
+    const node = scrollerRef.current;
+    if (!node) return;
     const onScroll = () => {
-      const distance = document.documentElement.scrollHeight - window.scrollY - window.innerHeight;
-      stick.current = distance < 160;
+      stick.current = node.scrollHeight - node.scrollTop - node.clientHeight < 160;
     };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+    node.addEventListener("scroll", onScroll, { passive: true });
+    return () => node.removeEventListener("scroll", onScroll);
+  }, [status]);
 
   useEffect(() => {
-    if (status !== "ready" || !stick.current) return;
-    endRef.current?.scrollIntoView({ block: "end" });
+    const node = scrollerRef.current;
+    if (status !== "ready" || !stick.current || !node) return;
+    const frame = requestAnimationFrame(() => {
+      node.scrollTop = node.scrollHeight;
+    });
+    return () => cancelAnimationFrame(frame);
   }, [status, messages.length]);
 
   async function loadOlder() {
     if (!token || !cursor || loadingOlder) return;
     setLoadingOlder(true);
     stick.current = false;
-    const before = document.documentElement.scrollHeight;
+    const node = scrollerRef.current;
+    const before = node?.scrollHeight ?? 0;
     try {
       const page = await fetchThread(token, conversationId, cursor);
       setMessages((prev) => {
@@ -195,7 +222,7 @@ export function ConversationView({ conversationId }: { conversationId: string })
       });
       setCursor(page.nextCursor);
       requestAnimationFrame(() => {
-        window.scrollBy(0, document.documentElement.scrollHeight - before);
+        if (node) node.scrollTop += node.scrollHeight - before;
       });
     } finally {
       setLoadingOlder(false);
@@ -224,6 +251,8 @@ export function ConversationView({ conversationId }: { conversationId: string })
     }
   }
 
+  const seenAt = laterIso(loadedReadAt, peerReads[conversationId]);
+
   if (status === "missing" || status === "error") {
     return (
       <>
@@ -251,26 +280,27 @@ export function ConversationView({ conversationId }: { conversationId: string })
         subtitle={peer ? `@${peer.handle}` : undefined}
         back
       />
-      <div className="flex flex-1 flex-col justify-end gap-2 px-4 py-4">
-        {cursor && (
-          <button
-            type="button"
-            onClick={() => void loadOlder()}
-            disabled={loadingOlder}
-            className="mx-auto mb-2 text-sm font-semibold text-primary hover:underline disabled:opacity-60"
-          >
-            {loadingOlder ? "Loading…" : "Earlier messages"}
-          </button>
-        )}
-        {status === "ready" && messages.length === 0 && peer && (
-          <p className="pb-2 text-center text-sm text-muted-foreground">
-            This is the start of your conversation with @{peer.handle}.
-          </p>
-        )}
-        {messages.map((message) => (
-          <Bubble key={message.id} message={message} />
-        ))}
-        <div ref={endRef} />
+      <div ref={scrollerRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4">
+        <div className="mt-auto flex flex-col gap-2">
+          {cursor && (
+            <button
+              type="button"
+              onClick={() => void loadOlder()}
+              disabled={loadingOlder}
+              className="mx-auto mb-2 text-sm font-semibold text-primary hover:underline disabled:opacity-60"
+            >
+              {loadingOlder ? "Loading…" : "Earlier messages"}
+            </button>
+          )}
+          {status === "ready" && messages.length === 0 && peer && (
+            <p className="pb-2 text-center text-sm text-muted-foreground">
+              This is the start of your conversation with @{peer.handle}.
+            </p>
+          )}
+          {messages.map((message) => (
+            <Bubble key={message.id} message={message} read={messageIsRead(message, seenAt)} />
+          ))}
+        </div>
       </div>
       {peer && <Composer handle={peer.handle} disabled={status !== "ready"} onSend={(body) => void send(body)} />}
     </div>
@@ -350,7 +380,7 @@ export function NewConversation({ userId }: { userId: string }) {
         subtitle={peer ? `@${peer.handle}` : undefined}
         back
       />
-      <div className="flex flex-1 flex-col justify-end px-4 py-4">
+      <div className="flex min-h-0 flex-1 flex-col justify-end overflow-y-auto px-4 py-4">
         <p className="pb-2 text-center text-sm text-muted-foreground">
           {peer ? `This is the start of your conversation with @${peer.handle}.` : "Loading…"}
         </p>

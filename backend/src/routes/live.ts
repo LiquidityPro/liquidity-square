@@ -25,7 +25,7 @@ liveRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<vo
     const parsed = typeof sinceRaw === "string" ? Date.parse(sinceRaw) : Number.NaN;
     const after = Number.isNaN(parsed) ? new Date(now.getTime() - LOOKBACK_MS) : new Date(parsed - OVERLAP_MS);
 
-    const [unreadCount, unreadMessages, posts, notifications, messages] = await Promise.all([
+    const [unreadCount, unreadMessages, posts, notifications, messages, reads] = await Promise.all([
       prisma.notification.count({ where: { recipientId: userId, readAt: null } }),
       unreadMessageCount(userId),
       prisma.post.findMany({
@@ -56,6 +56,15 @@ liveRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<vo
         take: LIVE_LIMIT,
         include: { sender: { select: AUTHOR_SELECT } },
       }),
+      prisma.conversationRead.findMany({
+        where: {
+          userId: { not: userId },
+          lastReadAt: { gt: after, lte: now },
+          conversation: { OR: [{ userAId: userId }, { userBId: userId }] },
+        },
+        select: { conversationId: true, lastReadAt: true },
+        take: LIVE_LIMIT,
+      }),
     ]);
 
     res.status(200).json({
@@ -64,6 +73,10 @@ liveRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<vo
       unreadMessages,
       posts: posts.map(toPostDto),
       messages: messages.map((message) => toMessageDto(message, userId)),
+      reads: reads.map((read) => ({
+        conversationId: read.conversationId,
+        readAt: read.lastReadAt.toISOString(),
+      })),
       notifications: notifications.map((n) => ({
         id: n.id,
         type: n.type,

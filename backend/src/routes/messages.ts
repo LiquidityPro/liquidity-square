@@ -9,6 +9,7 @@ import {
   appendMessage,
   markConversationRead,
   openConversation,
+  peerReadAt,
   requireMembership,
   toMessageDto,
   unreadMessageCount,
@@ -128,6 +129,7 @@ messagesRouter.get("/:id", async (req: AuthenticatedRequest<{ id: string }>, res
       conversation: { id: req.params.id, with: peer },
       messages: page.map((message) => toMessageDto(message, userId)),
       nextCursor: rows.length > MESSAGE_PAGE ? page[0]?.id ?? null : null,
+      peerReadAt: await peerReadAt(req.params.id, userId),
     });
   } catch (error) {
     fail(res, error, "Read conversation error:");
