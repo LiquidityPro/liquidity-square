@@ -51,6 +51,7 @@ function Editorial() {
           alt=""
           fill
           priority
+          unoptimized
           sizes="50vw"
           className="object-cover object-center os-dark:brightness-[0.42] os-dark:saturate-125"
         />

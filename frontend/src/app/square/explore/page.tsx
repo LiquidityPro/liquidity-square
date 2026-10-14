@@ -8,6 +8,9 @@ import { useSquare } from "@/components/square/context";
 import { fetchSuggested, fetchTickers, search, type SearchResults } from "@/components/square/api";
 import { TRENDING, compact, type Author, type TickerSummary } from "@/components/square/data";
 import { SentimentBar } from "@/components/square/right-rail";
+import { useMarketTape } from "@/components/square/use-market-tape";
+import { formatChange, formatNaira, formatSector, formatSession, splitSession } from "@/lib/market/quotes";
+import type { TapeQuote } from "@/lib/market/tape";
 
 type Tab = "top" | "people" | "tickers";
 const TABS: { id: Tab; label: string }[] = [
@@ -38,6 +41,7 @@ function Explore() {
   const [suggested, setSuggested] = useState<Author[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { snapshot, failed: tapeFailed } = useMarketTape();
 
   useEffect(() => {
     setDraft(initial);
@@ -103,10 +107,17 @@ function Explore() {
     [],
   );
 
-  const tickers = q ? (results?.tickers ?? []) : trending.length > 0 ? trending : fallbackTrends;
+  const tickers = q ? (results?.tickers ?? []) : trending.length > 0 ? trending : loading ? [] : fallbackTrends;
+  const taggedTickers = q ? (results?.tickers ?? []) : trending;
   const people = q ? (results?.users ?? []) : suggested;
   const posts = results?.posts ?? [];
-  const emptySearch = !!q && !loading && !error && !tickers.length && !people.length && !posts.length;
+  const listed = useMemo(() => {
+    const quotes = snapshot?.quotes ?? [];
+    if (!q) return quotes;
+    const needle = q.replace(/^\$/, "").toUpperCase();
+    return quotes.filter((quote) => quote.symbol.includes(needle));
+  }, [snapshot, q]);
+  const emptySearch = !!q && !loading && !error && !tickers.length && !people.length && !posts.length && listed.length === 0;
 
   return (
     <>
@@ -135,23 +146,45 @@ function Explore() {
         </p>
       )}
 
-      {loading && !results && trending.length === 0 && suggested.length === 0 ? (
+      {loading && !results && trending.length === 0 && suggested.length === 0 && !snapshot ? (
         <PostSkeleton count={4} />
       ) : emptySearch ? (
         <EmptyState title="No matches" body={`Nothing on the floor for “${q}”. Try a ticker like MTNN.`} />
       ) : (
         <>
-          {(tab === "top" || tab === "tickers") && tickers.length > 0 && (
-            <section className={tab === "tickers" ? "" : "border-b"}>
-              {tab === "top" && (
-                <h2 className="px-4 pb-1 pt-4 text-xl font-bold">{q ? "Tickers" : "Trending on NGX"}</h2>
-              )}
+          {tab === "top" && tickers.length > 0 && (
+            <section className="border-b">
+              <h2 className="px-4 pb-1 pt-4 text-xl font-bold">{q ? "Tickers" : "Trending on NGX"}</h2>
               <ol>
                 {tickers.map((t, i) => (
                   <TickerResult key={t.symbol} ticker={t} rank={i + 1} />
                 ))}
               </ol>
             </section>
+          )}
+
+          {tab === "tickers" && (
+            <>
+              <section className="border-b">
+                <h2 className="px-4 pb-1 pt-4 text-xl font-bold">{q ? "Trending matches" : "Trending on NGX"}</h2>
+                {taggedTickers.length > 0 ? (
+                  <ol>
+                    {taggedTickers.map((t, i) => (
+                      <TickerResult key={t.symbol} ticker={t} rank={i + 1} />
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="px-4 py-6 text-sm text-muted-foreground">
+                    {loading && !q
+                      ? "Loading trending…"
+                      : q
+                        ? "No tagged tickers match that search."
+                        : "No tagged tickers yet. The board below is the full NGX list."}
+                  </p>
+                )}
+              </section>
+              <ListedTickers quotes={listed} sessionDate={snapshot?.sessionDate} failed={tapeFailed} query={q} />
+            </>
           )}
 
           {(tab === "top" || tab === "people") && people.length > 0 && (
@@ -183,9 +216,6 @@ function Explore() {
             />
           )}
 
-          {tab === "tickers" && !tickers.length && (
-            <EmptyState title={q ? "No tickers found" : "Quiet tape"} body="Tag a ticker like $DANGCEM in a post to start a room." />
-          )}
 
           {tab === "top" && !q && !tickers.length && !people.length && (
             <EmptyState title="Nothing trending yet" body="Post with a $TICKER to get the floor moving." />
@@ -193,6 +223,113 @@ function Explore() {
         </>
       )}
     </>
+  );
+}
+
+function ListedTickers({
+  quotes,
+  sessionDate,
+  failed,
+  query,
+}: {
+  quotes: TapeQuote[];
+  sessionDate?: string;
+  failed: boolean;
+  query: string;
+}) {
+  let message = "Loading the session…";
+  if (sessionDate && query) message = "No listed ticker matches that search.";
+  else if (sessionDate) message = "No names in this session.";
+  else if (failed) message = "Session unavailable.";
+
+  return (
+    <section>
+      <div className="flex items-center justify-between gap-3 px-4 pb-1 pt-4">
+        <h2 className="text-xl font-bold">{query ? "Listed matches" : "All tickers"}</h2>
+        {sessionDate && (
+          <span
+            className="label-mono rounded border px-1.5 py-0.5 !text-[0.6rem] text-muted-foreground"
+            title={`NGX session ${sessionDate}`}
+          >
+            {formatSession(sessionDate)}
+          </span>
+        )}
+      </div>
+      {quotes.length > 0 ? (
+        <SessionGroups quotes={quotes} />
+      ) : (
+        <p className="px-4 py-6 text-sm text-muted-foreground">{message}</p>
+      )}
+    </section>
+  );
+}
+
+function SessionGroups({ quotes }: { quotes: TapeQuote[] }) {
+  const { gainers, losers, unchanged } = splitSession(quotes);
+  const groups = [
+    { label: "Gainers", quotes: gainers, tone: "up" as const },
+    { label: "Losers", quotes: losers, tone: "down" as const },
+    { label: "Unchanged", quotes: unchanged, tone: "flat" as const },
+  ];
+
+  return (
+    <div>
+      {groups.map((group) => (
+        <section key={group.label} className="border-b last:border-b-0">
+          <h3
+            className={
+              group.tone === "up"
+                ? "px-4 pb-1 pt-4 text-sm font-bold uppercase tracking-wider text-primary"
+                : group.tone === "down"
+                  ? "px-4 pb-1 pt-4 text-sm font-bold uppercase tracking-wider text-bear"
+                  : "px-4 pb-1 pt-4 text-sm font-bold uppercase tracking-wider text-muted-foreground"
+            }
+          >
+            {group.label}
+            <span className="ml-2 font-mono text-xs font-medium opacity-70">{group.quotes.length}</span>
+          </h3>
+          {group.quotes.length === 0 ? (
+            <p className="px-4 py-3 text-sm text-muted-foreground">
+              {group.tone === "up" ? "No gainers yet." : group.tone === "down" ? "No losers yet." : "None in this group."}
+            </p>
+          ) : (
+            <ol>
+              {group.quotes.map((quote) => (
+                <li key={quote.symbol} style={{ contentVisibility: "auto", containIntrinsicSize: "auto 64px" }}>
+                  <MarketTickerRow quote={quote} />
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function MarketTickerRow({ quote }: { quote: TapeQuote }) {
+  const router = useRouter();
+  const changeClass =
+    quote.changePct > 0
+      ? "font-mono text-xs font-bold text-primary"
+      : quote.changePct < 0
+        ? "font-mono text-xs font-bold text-bear"
+        : "font-mono text-xs font-bold text-muted-foreground";
+  return (
+    <button
+      type="button"
+      onClick={() => router.push(`/square/${quote.symbol}`)}
+      className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition-colors hover:bg-card/60"
+    >
+      <span>
+        <span className="label-mono !text-[0.62rem] text-muted-foreground">{formatSector(quote.sector || "NGX")}</span>
+        <span className="mt-0.5 block font-mono font-semibold">${quote.symbol}</span>
+      </span>
+      <span className="text-right">
+        <span className="block font-mono text-sm">₦{formatNaira(quote.price)}</span>
+        <span className={changeClass}>{formatChange(quote.changePct)}</span>
+      </span>
+    </button>
   );
 }
 

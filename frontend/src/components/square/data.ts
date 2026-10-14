@@ -349,15 +349,3 @@ export function getTickerData(ticker: string): CompanyFundamentals {
   };
 }
 
-export const TOP_MOVERS = {
-  gainers: [
-    { ticker: "OANDO", change: 9.8, price: 14.50 },
-    { ticker: "TRANSCORP", change: 8.4, price: 7.20 },
-    { ticker: "UBA", change: 5.2, price: 21.05 },
-  ],
-  losers: [
-    { ticker: "NESTLE", change: -9.9, price: 950.00 },
-    { ticker: "MTNN", change: -4.5, price: 205.50 },
-    { ticker: "STANBIC", change: -3.1, price: 62.00 },
-  ]
-};
