@@ -35,6 +35,7 @@ export type Reaction = "like" | "repost" | "bookmark";
 async function request<T>(path: string, token: string, method = "GET", body?: unknown): Promise<T> {
   const res = await fetch(`/api/server${path}`, {
     method,
+    cache: "no-store",
     headers: {
       Authorization: `Bearer ${token}`,
       ...(body !== undefined && { "Content-Type": "application/json" }),
@@ -220,6 +221,17 @@ type NotificationDto = {
   post: { id: string; body: string } | null;
 };
 
+function toNotification(n: NotificationDto): SquareNotification {
+  return {
+    id: n.id,
+    type: n.type,
+    read: n.read,
+    time: relativeTime(n.createdAt),
+    actor: toAuthor(n.actor),
+    post: n.post,
+  };
+}
+
 export async function fetchNotifications(
   token: string,
   cursor?: string | null,
@@ -228,16 +240,28 @@ export async function fetchNotifications(
     `/notifications${query({ cursor })}`,
     token,
   );
+  return { notifications: notifications.map(toNotification), nextCursor };
+}
+
+export type LiveUpdate = {
+  now: string;
+  unreadCount: number;
+  posts: Post[];
+  notifications: SquareNotification[];
+};
+
+export async function fetchLive(token: string, since: string | null): Promise<LiveUpdate> {
+  const data = await request<{
+    now: string;
+    unreadCount: number;
+    posts: PostDto[];
+    notifications: NotificationDto[];
+  }>(`/live${query({ since })}`, token);
   return {
-    notifications: notifications.map((n) => ({
-      id: n.id,
-      type: n.type,
-      read: n.read,
-      time: relativeTime(n.createdAt),
-      actor: toAuthor(n.actor),
-      post: n.post,
-    })),
-    nextCursor,
+    now: data.now,
+    unreadCount: data.unreadCount,
+    posts: data.posts.map(toPost),
+    notifications: data.notifications.map(toNotification),
   };
 }
 
@@ -248,4 +272,16 @@ export async function fetchUnreadCount(token: string): Promise<number> {
 
 export async function markNotificationsRead(token: string): Promise<void> {
   await request("/notifications/read", token, "POST");
+}
+
+export async function fetchVapidPublicKey(token: string): Promise<string> {
+  const { publicKey } = await request<{ publicKey: string }>("/push/vapid-public-key", token);
+  return publicKey;
+}
+
+export async function savePushSubscription(
+  token: string,
+  subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
+): Promise<void> {
+  await request("/push/subscription", token, "PUT", subscription);
 }

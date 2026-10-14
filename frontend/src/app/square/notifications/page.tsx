@@ -29,7 +29,7 @@ const COPY: Record<NotificationType, string> = {
 };
 
 export default function NotificationsPage() {
-  const { token, ready, markAllRead } = useSquare();
+  const { token, ready, markAllRead, incomingNotifications } = useSquare();
   const [tab, setTab] = useState<Tab>("all");
   const [items, setItems] = useState<SquareNotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,9 +53,15 @@ export default function NotificationsPage() {
     };
   }, [token, ready, markAllRead]);
 
+  const merged = useMemo(() => {
+    const seen = new Set(items.map((item) => item.id));
+    const fresh = incomingNotifications.filter((item) => !seen.has(item.id));
+    return [...fresh, ...items];
+  }, [items, incomingNotifications]);
+
   const visible = useMemo(
-    () => (tab === "mentions" ? items.filter((n) => n.type === "reply") : items),
-    [items, tab],
+    () => (tab === "mentions" ? merged.filter((n) => n.type === "reply") : merged),
+    [merged, tab],
   );
 
   return (

@@ -1,8 +1,9 @@
 import './globals.css'
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Fira_Code } from 'next/font/google'
 import { ThemeProvider } from '@/components/theme-provider'
 import { AuthSessionProvider } from '@/components/auth/session-provider'
+import { ServiceWorkerRegistration } from '@/components/pwa/service-worker'
 
 const firaCode = Fira_Code({
   subsets: ['latin'],
@@ -12,13 +13,32 @@ const firaCode = Fira_Code({
 
 export const metadata: Metadata = {
   title: 'Liquidity Square',
-  description: 'Your Next.js application',
+  description: 'Follow the tape, share a thesis, and talk markets on The Square.',
+  applicationName: 'Liquidity Square',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'The Square',
+  },
+  formatDetection: { telephone: false },
   icons: {
     icon: [
       { url: '/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon.ico', type: 'image/x-icon' },
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
+    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180' }],
   },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f7f8f6' },
+    { media: '(prefers-color-scheme: dark)', color: '#0B1210' },
+  ],
 }
 
 export default function RootLayout({
@@ -29,6 +49,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
+        <meta name="apple-mobile-web-app-capable" content="yes" />
         <script
           id="theme-init"
           dangerouslySetInnerHTML={{
@@ -44,6 +65,7 @@ export default function RootLayout({
         />
       </head>
       <body suppressHydrationWarning className={firaCode.variable}>
+        <ServiceWorkerRegistration />
         <AuthSessionProvider>
           <ThemeProvider>
             {children}

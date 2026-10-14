@@ -32,7 +32,7 @@ function formatWhen(iso: string): string {
   }).format(new Date(iso));
 }
 
-export function TickerTape() {
+export function TickerTape({ onOpen }: { onOpen?: () => void }) {
   const { snapshot, failed } = useMarketTape();
 
   const quotes = snapshot?.quotes ?? [];
@@ -40,13 +40,39 @@ export function TickerTape() {
   const sessionTitle = snapshot
     ? `NGX session ${snapshot.sessionDate}. Next refresh ${formatWhen(snapshot.refreshAt)} WAT.`
     : "NGX session";
+  const tapeClass =
+    "flex w-full border-b bg-background/65 text-left text-sm shadow-[0_4px_24px_-10px_rgba(0,0,0,0.1)] backdrop-blur-2xl backdrop-saturate-150 supports-[backdrop-filter]:bg-background/50";
 
   return (
-    <div className="sticky top-0 z-50 flex border-b bg-background/65 text-sm shadow-[0_4px_24px_-10px_rgba(0,0,0,0.1)] backdrop-blur-2xl backdrop-saturate-150 supports-[backdrop-filter]:bg-background/50">
-      <div
-        className="flex shrink-0 items-center gap-2 border-r px-3 font-mono text-xs"
+    <div className="sticky top-0 z-50">
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label="Open markets"
         title={sessionTitle}
+        className={`${tapeClass} lg:hidden`}
       >
+        <TapeBody quotes={quotes} failed={failed} sessionLabel={sessionLabel} />
+      </button>
+      <div className={`${tapeClass} hidden lg:flex`} title={sessionTitle}>
+        <TapeBody quotes={quotes} failed={failed} sessionLabel={sessionLabel} />
+      </div>
+    </div>
+  );
+}
+
+function TapeBody({
+  quotes,
+  failed,
+  sessionLabel,
+}: {
+  quotes: TapeQuote[];
+  failed: boolean;
+  sessionLabel: string;
+}) {
+  return (
+    <>
+      <div className="flex shrink-0 items-center gap-2 border-r px-3 font-mono text-xs">
         <span className="font-bold tracking-wide">NGX</span>
         <span className="text-muted-foreground">{sessionLabel}</span>
       </div>
@@ -59,7 +85,7 @@ export function TickerTape() {
           </p>
         )}
       </div>
-    </div>
+    </>
   );
 }
 

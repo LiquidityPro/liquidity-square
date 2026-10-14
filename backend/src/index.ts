@@ -7,6 +7,8 @@ import { tickersRouter } from "./routes/tickers";
 import { usersRouter } from "./routes/users";
 import { searchRouter } from "./routes/search";
 import { notificationsRouter } from "./routes/notifications";
+import { liveRouter } from "./routes/live";
+import { pushRouter } from "./routes/push";
 
 dotenv.config({ quiet: true });
 
@@ -43,6 +45,8 @@ app.use("/api/users", usersRouter);
 app.use("/api/tickers", tickersRouter);
 app.use("/api/search", searchRouter);
 app.use("/api/notifications", notificationsRouter);
+app.use("/api/live", liveRouter);
+app.use("/api/push", pushRouter);
 
 // Start server (only in local / non-Vercel environment)
 if (!process.env.VERCEL) {
