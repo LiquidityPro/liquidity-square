@@ -13,7 +13,6 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { signOutSession } from "@/lib/session";
 import { toast } from "sonner";
 import { type Author, type NotificationType, type Post, type SquareNotification, extractTickers, type Stance } from "./data";
 import {
@@ -106,13 +105,7 @@ export function SquareProvider({ children }: { children: ReactNode }) {
     postsRef.current = postsById;
   }, [postsById]);
 
-  const error = ready && !token ? "Your session has no API token. Sign out and sign in again." : null;
-
-  useEffect(() => {
-    if (status === "authenticated" && !token) {
-      void signOutSession();
-    }
-  }, [status, token]);
+  const error = ready && status === "authenticated" && !token ? "Your session has no API token. Sign out and sign in again." : null;
 
   useEffect(() => {
     if (!token) return;

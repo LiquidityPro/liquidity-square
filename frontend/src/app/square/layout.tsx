@@ -83,8 +83,14 @@ function SquareInner({ children }: { children: React.ReactNode }) {
         position="bottom-center"
         toastOptions={{
           classNames: {
-            toast: "!rounded-full !border-primary/30 !bg-primary !px-5 !py-3 !font-semibold !text-primary-foreground",
-            error: "!border-bear/30 !bg-bear",
+            toast:
+              "!w-[min(100vw-2rem,24rem)] !items-center !gap-3 !rounded-2xl !border !border-primary/40 !bg-primary !px-4 !py-3 !text-left !text-sm !text-primary-foreground",
+            content: "!min-w-0 !flex-1",
+            title: "!font-semibold !leading-snug !text-inherit",
+            description: "!mt-0.5 !font-normal !leading-snug !text-inherit !opacity-80",
+            actionButton:
+              "!h-auto !shrink-0 !rounded-full !bg-primary-foreground !px-3 !py-1.5 !text-sm !font-semibold !text-primary",
+            error: "!border-destructive/40 !bg-destructive !text-destructive-foreground",
           },
         }}
       />

@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { AUTHOR_SELECT, toAuthorDto } from "../lib/author";
 import { listPosts } from "../lib/post";
 import { authenticateJwt, AuthenticatedRequest } from "../middleware/auth";
+import { ensureListedTickers } from "../lib/listed-tickers";
 
 export const searchRouter = Router();
 
@@ -20,15 +21,17 @@ searchRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<
       return;
     }
 
+    await ensureListedTickers();
+
     const symbol = q.replace(/^\$/, "").toUpperCase();
     const contains = { contains: q, mode: "insensitive" } as const;
     const terms = q.split(/\s+/).filter(Boolean);
 
-    const [tickers, users, posts] = await Promise.all([
+    const [tickerRows, users, posts] = await Promise.all([
       prisma.ticker.findMany({
-        where: { OR: [{ symbol: { startsWith: symbol } }, { name: contains }] },
+        where: { OR: [{ symbol: { contains: symbol } }, { name: contains }] },
         orderBy: [{ posts: { _count: "desc" } }, { symbol: "asc" }],
-        take: RESULT_LIMIT,
+        take: 40,
         select: { symbol: true, name: true, sector: true, _count: { select: { posts: true } } },
       }),
       prisma.user.findMany({
@@ -48,8 +51,18 @@ searchRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<
       listPosts(req.userId!, { body: contains }, { limit: RESULT_LIMIT }),
     ]);
 
+    const tickers = tickerRows
+      .map(({ _count, ...t }) => ({ ...t, postCount: _count.posts }))
+      .sort(
+        (a, b) =>
+          Number(!a.symbol.startsWith(symbol)) - Number(!b.symbol.startsWith(symbol)) ||
+          b.postCount - a.postCount ||
+          a.symbol.localeCompare(b.symbol),
+      )
+      .slice(0, RESULT_LIMIT);
+
     res.status(200).json({
-      tickers: tickers.map(({ _count, ...t }) => ({ ...t, postCount: _count.posts })),
+      tickers,
       users: users.map(toAuthorDto),
       posts: posts.posts,
     });

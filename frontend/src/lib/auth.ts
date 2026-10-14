@@ -131,10 +131,10 @@ export const authOptions: NextAuthOptions = {
         token.lastName = (user as any).lastName;
         token.token = (user as any).token;
       }
-      // Drop the NextAuth cookie if the nested API JWT is missing or expired.
-      // Otherwise the browser looks logged in while every API call returns 401.
+      // Throw so NextAuth clears the cookie and returns an empty session.
+      // Returning null still gets encoded and leaves the browser looking signed in.
       if (!isUsableAccessToken(token.token)) {
-        return null as unknown as typeof token;
+        throw new Error("API access token expired");
       }
       return token;
     },
