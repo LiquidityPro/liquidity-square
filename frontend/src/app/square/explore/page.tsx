@@ -6,8 +6,7 @@ import { LuSearch as Search } from "react-icons/lu";
 import { EmptyState, PageHeader, PostCard, PostSkeleton, TabBar, UserRow } from "@/components/square/parts";
 import { useSquare } from "@/components/square/context";
 import { fetchSuggested, fetchTickers, search, type SearchResults } from "@/components/square/api";
-import { TRENDING, compact, type Author, type TickerSummary } from "@/components/square/data";
-import { SentimentBar } from "@/components/square/right-rail";
+import { compact, type Author, type TickerSummary } from "@/components/square/data";
 import { useMarketTape } from "@/components/square/use-market-tape";
 import { formatChange, formatNaira, formatSector, formatSession, splitSession } from "@/lib/market/quotes";
 import type { TapeQuote } from "@/lib/market/tape";
@@ -39,7 +38,7 @@ function Explore() {
   const [results, setResults] = useState<SearchResults | null>(null);
   const [trending, setTrending] = useState<TickerSummary[]>([]);
   const [suggested, setSuggested] = useState<Author[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!initial);
   const [error, setError] = useState<string | null>(null);
   const { snapshot, failed: tapeFailed } = useMarketTape();
 
@@ -94,20 +93,7 @@ function Explore() {
     };
   }, [q, token, ready]);
 
-  const fallbackTrends = useMemo(
-    () =>
-      TRENDING.map((t) => ({
-        symbol: t.ticker,
-        name: null,
-        sector: t.sector,
-        postCount: 0,
-        postsLabel: t.posts,
-        bull: t.bull,
-      })),
-    [],
-  );
-
-  const tickers = q ? (results?.tickers ?? []) : trending.length > 0 ? trending : loading ? [] : fallbackTrends;
+  const tickers = q ? (results?.tickers ?? []) : trending;
   const taggedTickers = q ? (results?.tickers ?? []) : trending;
   const people = q ? (results?.users ?? []) : suggested;
   const posts = results?.posts ?? [];
@@ -353,10 +339,9 @@ function TickerResult({
         </p>
         <p className="mt-0.5 font-mono font-semibold">${ticker.symbol}</p>
         {ticker.name && <p className="text-xs text-muted-foreground">{ticker.name}</p>}
-        <p className="mb-2 text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           {ticker.postsLabel ?? `${compact(ticker.postCount)} posts`}
         </p>
-        {ticker.bull != null && <SentimentBar bull={ticker.bull} label={`$${ticker.symbol} sentiment`} />}
       </button>
     </li>
   );

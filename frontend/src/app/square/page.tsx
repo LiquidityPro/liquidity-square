@@ -5,6 +5,7 @@ import { Composer, EmptyState, PostFeed, TabBar } from "@/components/square/part
 import { useSquare } from "@/components/square/context";
 import { fetchPosts } from "@/components/square/api";
 import type { Post } from "@/components/square/data";
+import { useCurrentAuthor } from "@/components/square/use-current-author";
 import { usePostList } from "@/components/square/use-post-list";
 
 type Tab = "for-you" | "following" | "verified";
@@ -18,7 +19,8 @@ const isTopLevel = (p: Post) => !p.parentId;
 const isVerified = (p: Post) => !!p.author.verified;
 
 export default function SquareIndex() {
-  const { publish } = useSquare();
+  const { publish, following } = useSquare();
+  const me = useCurrentAuthor();
   const [tab, setTab] = useState<Tab>("for-you");
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
@@ -27,10 +29,19 @@ export default function SquareIndex() {
       fetchPosts(token, { cursor, feed: tab === "following" ? "following" : undefined }),
     [tab],
   );
+  const includeRecent = useCallback(
+    (post: Post) => {
+      if (!isTopLevel(post)) return false;
+      if (tab !== "following") return true;
+      const authorId = post.author.id;
+      return authorId === me.id || (!!authorId && following.has(authorId));
+    },
+    [tab, me.id, following],
+  );
   const list = usePostList({
     key: tab === "following" ? "home:following" : "home:all",
     fetchPage,
-    includeRecent: isTopLevel,
+    includeRecent,
     keep: tab === "verified" ? isVerified : undefined,
   });
 

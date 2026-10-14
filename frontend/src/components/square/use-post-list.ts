@@ -35,7 +35,7 @@ export function usePostList({
   keep,
   enabled = true,
 }: Options): PostList {
-  const { token, ready, postsById, recentIds, cachePosts } = useSquare();
+  const { token, ready, postsById, recentIds, incomingIds, cachePosts } = useSquare();
   const [ids, setIds] = useState<string[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,16 +88,51 @@ export function usePostList({
   }, [token, cursor, loadingMore, cachePosts]);
 
   const posts = useMemo(() => {
-    const recent = includeRecent ? recentIds.filter((id) => postsById[id] && includeRecent(postsById[id])) : [];
-    const ordered = recentAt === "top" ? [...recent, ...ids] : [...ids, ...recent.reverse()];
+    const loaded = new Set(ids);
+    // Oldest-first threads only splice in live replies once every page is loaded,
+    // so a new reply doesn't land in the middle of an unfinished thread.
+    const pool = recentAt === "bottom" && cursor ? recentIds : [...incomingIds, ...recentIds];
+    const extraIds: string[] = [];
+    const seenExtra = new Set<string>();
+    for (const id of pool) {
+      if (seenExtra.has(id) || loaded.has(id)) continue;
+      seenExtra.add(id);
+      extraIds.push(id);
+    }
+
+    const loadedPosts = ids.flatMap((id) => (postsById[id] ? [postsById[id]] : []));
+    const newestLoadedAt = recentAt === "top" ? loadedPosts[0]?.createdAt : undefined;
+    const ownIds = new Set(recentIds);
+
+    const extras = extraIds
+      .flatMap((id) => {
+        const post = postsById[id];
+        if (!post || !includeRecent?.(post)) return [];
+        // Keep the feed in order: a live post older than the current head belongs further down the page.
+        if (
+          recentAt === "top" &&
+          newestLoadedAt &&
+          post.createdAt &&
+          post.createdAt < newestLoadedAt &&
+          !ownIds.has(post.id)
+        ) {
+          return [];
+        }
+        return [post];
+      })
+      .sort((a, b) => {
+        const delta = (a.createdAt ?? "").localeCompare(b.createdAt ?? "");
+        return recentAt === "top" ? -delta : delta;
+      });
+
+    const ordered = recentAt === "top" ? [...extras, ...loadedPosts] : [...loadedPosts, ...extras];
     const seen = new Set<string>();
-    return ordered.flatMap((id) => {
-      const post = postsById[id];
-      if (!post || seen.has(id) || (keep && !keep(post))) return [];
-      seen.add(id);
+    return ordered.flatMap((post) => {
+      if (seen.has(post.id) || (keep && !keep(post))) return [];
+      seen.add(post.id);
       return [post];
     });
-  }, [ids, recentIds, postsById, includeRecent, recentAt, keep]);
+  }, [ids, cursor, recentIds, incomingIds, postsById, includeRecent, recentAt, keep]);
 
   return { posts, loading: loading || !ready, loadingMore, error, hasMore: !!cursor, loadMore };
 }

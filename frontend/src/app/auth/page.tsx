@@ -8,6 +8,7 @@ import { LuEye as Eye, LuEyeOff as EyeOff, LuLoader as Loader2 } from "react-ico
 import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InstallAppButton } from "@/components/pwa/install-button";
 
 const fieldClass =
   "h-12 rounded-[10px] border-[#0F5A3D]/20 bg-white px-3.5 text-base text-[#14241C] shadow-none placeholder:text-[#8A9690] focus-visible:border-[#0F5A3D] focus-visible:ring-1 focus-visible:ring-[#0F5A3D] md:text-base os-dark:border-white/15 os-dark:bg-[#121C18] os-dark:text-[#F2F5F0] os-dark:placeholder:text-[#8A9A92] os-dark:focus-visible:border-[#D4FF5A] os-dark:focus-visible:ring-[#D4FF5A]";
@@ -426,6 +427,7 @@ function AuthForm() {
           </p>
         </motion.div>
       </AnimatePresence>
+      <InstallAppButton variant="quiet" />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { NotificationType } from "@prisma/client";
 import { prisma } from "./prisma";
+import { deliverPush } from "./push";
 
 type NotifyArgs = {
   type: NotificationType;
@@ -12,7 +13,8 @@ type NotifyArgs = {
 export async function notify({ type, actorId, recipientId, postId = null }: NotifyArgs): Promise<void> {
   if (actorId === recipientId) return;
   try {
-    await prisma.notification.create({ data: { type, actorId, recipientId, postId } });
+    const notification = await prisma.notification.create({ data: { type, actorId, recipientId, postId } });
+    await deliverPush(notification.id);
   } catch (error) {
     console.error("Create notification error:", error);
   }

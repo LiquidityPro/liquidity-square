@@ -18,6 +18,7 @@ import {
   LuUser as User,
 } from "react-icons/lu";
 import { Logo } from "@/components/site";
+import { InstallAppButton } from "@/components/pwa/install-button";
 import { Avatar } from "./avatar";
 import { cn } from "@/lib/utils";
 import { useSquare } from "./context";
@@ -136,6 +137,7 @@ export function LeftNav({ onCompose }: { onCompose: () => void }) {
       </div>
 
       <div className="mt-auto mb-2 space-y-2">
+        <InstallAppButton />
         <div className="flex items-center gap-2 rounded-full p-2 hover:bg-card">
           <Avatar author={me} />
           <div className="hidden min-w-0 flex-1 xl:block">

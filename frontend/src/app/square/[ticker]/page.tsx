@@ -21,7 +21,7 @@ export default function TickerRoom() {
     (t: string, cursor: string | null) => fetchPosts(t, { ticker, cursor }),
     [ticker],
   );
-  const hasTicker = useCallback((p: Post) => p.tickers.includes(ticker), [ticker]);
+  const hasTicker = useCallback((p: Post) => !p.parentId && p.tickers.includes(ticker), [ticker]);
   const list = usePostList({ key: `ticker:${ticker}`, fetchPage, includeRecent: hasTicker });
 
   useEffect(() => {

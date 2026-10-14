@@ -1,21 +1,34 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from "react";
+import {
+  createContext,
+  startTransition,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  ReactNode,
+} from "react";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { signOutSession } from "@/lib/session";
 import { toast } from "sonner";
-import { type Author, type Post, extractTickers, type Stance } from "./data";
+import { type Author, type NotificationType, type Post, type SquareNotification, extractTickers, type Stance } from "./data";
 import {
   createPost,
   deletePost as deletePostRequest,
   fetchFollowing,
-  fetchUnreadCount,
   markNotificationsRead,
   setFollowing,
   setReaction,
+  type LiveUpdate,
   type Reaction,
 } from "./api";
+import { useLiveTracker } from "./use-live-tracker";
 import { useCurrentAuthor } from "./use-current-author";
+import { claimToast } from "@/components/pwa/push";
 
 type SquareContextType = {
   token: string | undefined;
@@ -25,6 +38,10 @@ type SquareContextType = {
   postsById: Record<string, Post>;
   /** Posts published in this session, newest first, so lists can show them before a refetch. */
   recentIds: string[];
+  /** Posts that arrived from other people while this session was open. */
+  incomingIds: string[];
+  /** Notifications that arrived while this session was open, newest first. */
+  incomingNotifications: SquareNotification[];
   cachePosts: (posts: Post[]) => void;
   publish: (body: string, stance: Stance, parentId?: string | null) => Promise<void>;
   deletePost: (postId: string) => Promise<boolean>;
@@ -41,7 +58,15 @@ type SquareContextType = {
 const SquareContext = createContext<SquareContextType | null>(null);
 
 const PENDING_PREFIX = "pending-";
-const UNREAD_POLL_MS = 60_000;
+const INCOMING_POST_CAP = 300;
+const INCOMING_NOTIFICATION_CAP = 50;
+
+const NOTIFICATION_COPY: Record<NotificationType, string> = {
+  like: "liked your post",
+  follow: "followed you",
+  reply: "replied to your post",
+  repost: "reposted your post",
+};
 
 export const isPendingPost = (id: string) => id.startsWith(PENDING_PREFIX);
 
@@ -63,14 +88,18 @@ const REACTION_FIELDS = {
 
 export function SquareProvider({ children }: { children: ReactNode }) {
   const me = useCurrentAuthor();
+  const router = useRouter();
   const { data: session, status } = useSession();
   const token = session?.accessToken;
   const ready = status !== "loading";
 
   const [postsById, setPostsById] = useState<Record<string, Post>>({});
   const [recentIds, setRecentIds] = useState<string[]>([]);
+  const [incomingIds, setIncomingIds] = useState<string[]>([]);
+  const [incomingNotifications, setIncomingNotifications] = useState<SquareNotification[]>([]);
   const [following, setFollowingIds] = useState<Set<string>>(() => new Set());
   const [unreadCount, setUnreadCount] = useState(0);
+  const readEpoch = useRef(0);
 
   const postsRef = useRef(postsById);
   useEffect(() => {
@@ -97,28 +126,104 @@ export function SquareProvider({ children }: { children: ReactNode }) {
   }, [token]);
 
   useEffect(() => {
-    if (!token) return;
-    let cancelled = false;
-    const refresh = () =>
-      fetchUnreadCount(token)
-        .then((count) => !cancelled && setUnreadCount(count))
-        .catch((err) => console.error("Failed to load unread count", err));
-    refresh();
-    const interval = setInterval(refresh, UNREAD_POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
+    if (token) return;
+    setUnreadCount(0);
+    setIncomingIds([]);
+    setIncomingNotifications([]);
   }, [token]);
 
   const cachePosts = useCallback((posts: Post[]) => {
     if (posts.length === 0) return;
     setPostsById((prev) => {
       const next = { ...prev };
-      for (const post of posts) next[post.id] = post;
+      for (const post of posts) {
+        const existing = next[post.id];
+        // Keep a locally bumped reply count when a slower page load returns a stale post.
+        next[post.id] = existing ? { ...post, replies: Math.max(existing.replies, post.replies) } : post;
+      }
       return next;
     });
   }, []);
+
+  const addIncomingPosts = useCallback((posts: Post[]) => {
+    const myId = me.id;
+    // The composer already shows your own post. Ignore the live echo of that same publish.
+    const isOwnPending = (post: Post) =>
+      post.author.id === myId &&
+      Object.values(postsRef.current).some(
+        (existing) =>
+          isPendingPost(existing.id) &&
+          existing.body === post.body &&
+          (existing.parentId ?? null) === (post.parentId ?? null),
+      );
+
+    setPostsById((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const post of posts) {
+        if (next[post.id] || isOwnPending(post)) continue;
+        changed = true;
+        next[post.id] = post;
+        const parent = post.parentId ? next[post.parentId] : undefined;
+        if (parent && post.author.id !== myId) {
+          next[post.parentId!] = { ...parent, replies: parent.replies + 1 };
+        }
+      }
+      return changed ? next : prev;
+    });
+    setIncomingIds((prev) => {
+      const known = new Set(prev);
+      const fresh = posts.flatMap((post) => {
+        if (known.has(post.id) || postsRef.current[post.id] || isOwnPending(post)) return [];
+        known.add(post.id);
+        return [post.id];
+      });
+      if (fresh.length === 0) return prev;
+      return [...fresh, ...prev].slice(0, INCOMING_POST_CAP);
+    });
+  }, [me.id]);
+
+  const addIncomingNotifications = useCallback((items: SquareNotification[]) => {
+    setIncomingNotifications((prev) => {
+      const seen = new Set(prev.map((item) => item.id));
+      const fresh = items.filter((item) => !seen.has(item.id));
+      if (fresh.length === 0) return prev;
+      return [...fresh, ...prev].slice(0, INCOMING_NOTIFICATION_CAP);
+    });
+  }, []);
+
+  const livePrimed = useRef(false);
+
+  const applyLive = useCallback(
+    (update: LiveUpdate, epochAtStart: number) => {
+      const baseline = !livePrimed.current;
+      livePrimed.current = true;
+      startTransition(() => {
+        if (update.posts.length > 0) addIncomingPosts(update.posts);
+        if (update.notifications.length > 0) addIncomingNotifications(update.notifications);
+        if (epochAtStart === readEpoch.current) setUnreadCount(update.unreadCount);
+      });
+      for (const item of update.notifications) {
+        if (baseline) {
+          claimToast(item.id);
+          continue;
+        }
+        if (document.visibilityState !== "visible" || !claimToast(item.id)) continue;
+        const href = item.post ? `/square/post/${item.post.id}` : item.actor.id ? `/square/u/${item.actor.id}` : "/square/notifications";
+        toast(`${item.actor.name} ${NOTIFICATION_COPY[item.type]}`, {
+          description: item.post?.body,
+          duration: 8000,
+          action: { label: "View", onClick: () => router.push(href) },
+        });
+      }
+    },
+    [addIncomingPosts, addIncomingNotifications, router],
+  );
+
+  useLiveTracker(token, {
+    currentEpoch: () => readEpoch.current,
+    onUpdate: applyLive,
+  });
 
   const patchPost = useCallback((postId: string, patch: Partial<Post>) => {
     setPostsById((prev) => (prev[postId] ? { ...prev, [postId]: { ...prev[postId], ...patch } } : prev));
@@ -259,6 +364,7 @@ export function SquareProvider({ children }: { children: ReactNode }) {
 
   const markAllRead = useCallback(() => {
     if (!token) return;
+    readEpoch.current += 1;
     setUnreadCount(0);
     markNotificationsRead(token).catch((err) => console.error("Failed to mark notifications read", err));
   }, [token]);
@@ -270,6 +376,8 @@ export function SquareProvider({ children }: { children: ReactNode }) {
       error,
       postsById,
       recentIds,
+      incomingIds,
+      incomingNotifications,
       cachePosts,
       publish,
       deletePost,
@@ -287,6 +395,8 @@ export function SquareProvider({ children }: { children: ReactNode }) {
       error,
       postsById,
       recentIds,
+      incomingIds,
+      incomingNotifications,
       cachePosts,
       publish,
       deletePost,

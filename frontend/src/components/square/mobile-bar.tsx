@@ -15,6 +15,7 @@ import { signOutSession } from "@/lib/session";
 import { NavBadge, navItemActive, ThemeToggle, useNavItems } from "./navigation";
 import { Avatar } from "./avatar";
 import { useCurrentAuthor } from "./use-current-author";
+import { InstallAppButton } from "@/components/pwa/install-button";
 
 /* Mobile bottom bar + floating compose                                */
 /* ------------------------------------------------------------------ */
@@ -93,6 +94,7 @@ export function MobileBar({ onCompose }: { onCompose: () => void }) {
               Soon
             </span>
           </button>
+          <InstallAppButton variant="menu" />
           <div className="flex min-h-11 items-center justify-between gap-3 rounded-lg px-2">
             <span className="text-sm">Appearance</span>
             <ThemeToggle />
