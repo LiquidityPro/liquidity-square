@@ -79,7 +79,7 @@ export function PushPrompt() {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b px-4 py-3">
+    <div className="flex shrink-0 flex-wrap items-center gap-3 border-b px-4 py-3">
       <p className="min-w-0 flex-1 text-sm">
         {iosOnly
           ? "Add The Square to your Home Screen to get alerts on this iPhone."

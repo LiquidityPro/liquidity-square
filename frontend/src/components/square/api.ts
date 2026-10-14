@@ -297,6 +297,8 @@ export async function fetchNotifications(
   return { notifications: notifications.map(toNotification), nextCursor };
 }
 
+export type MessageRead = { conversationId: string; readAt: string };
+
 export type LiveUpdate = {
   now: string;
   unreadCount: number;
@@ -304,6 +306,7 @@ export type LiveUpdate = {
   posts: Post[];
   notifications: SquareNotification[];
   messages: ChatMessage[];
+  reads: MessageRead[];
 };
 
 export async function fetchLive(token: string, since: string | null): Promise<LiveUpdate> {
@@ -314,6 +317,7 @@ export async function fetchLive(token: string, since: string | null): Promise<Li
     posts: PostDto[];
     notifications: NotificationDto[];
     messages?: ChatMessageDto[];
+    reads?: MessageRead[];
   }>(`/live${query({ since })}`, token);
   return {
     now: data.now,
@@ -322,6 +326,7 @@ export async function fetchLive(token: string, since: string | null): Promise<Li
     posts: data.posts.map(toPost),
     notifications: data.notifications.map(toNotification),
     messages: (data.messages ?? []).map(toChatMessage),
+    reads: data.reads ?? [],
   };
 }
 
@@ -380,16 +385,18 @@ export async function fetchThread(
   token: string,
   id: string,
   cursor?: string | null,
-): Promise<{ with: Author; messages: ChatMessage[]; nextCursor: string | null }> {
+): Promise<{ with: Author; messages: ChatMessage[]; nextCursor: string | null; peerReadAt: string | null }> {
   const data = await request<{
     conversation: { id: string; with: AuthorDto };
     messages: ChatMessageDto[];
     nextCursor: string | null;
+    peerReadAt?: string | null;
   }>(`/messages/${encodeURIComponent(id)}${query({ cursor })}`, token);
   return {
     with: toAuthor(data.conversation.with),
     messages: data.messages.map(toChatMessage),
     nextCursor: data.nextCursor,
+    peerReadAt: data.peerReadAt ?? null,
   };
 }
 

@@ -19,7 +19,7 @@ import { InstallAppButton } from "@/components/pwa/install-button";
 /* Mobile bottom bar + floating compose                                */
 /* ------------------------------------------------------------------ */
 
-const MOBILE_LABELS = ["Home", "Explore", "Notifications", "Bookmarks", "Profile"];
+const MOBILE_LABELS = ["Home", "Explore", "Notifications", "Bookmarks", "Messages", "Profile"];
 
 export function MobileBar({ onCompose }: { onCompose: () => void }) {
   const pathname = usePathname();
@@ -28,7 +28,7 @@ export function MobileBar({ onCompose }: { onCompose: () => void }) {
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const me = useCurrentAuthor();
   const navItems = useNavItems();
-  const items = navItems.filter((item) => MOBILE_LABELS.includes(item.label));
+  const items = MOBILE_LABELS.flatMap((label) => navItems.filter((item) => item.label === label));
   const moreLinks = [
     ...navItems.filter((item) => item.href && !MOBILE_LABELS.includes(item.label)),
     ...useMoreItems(),
