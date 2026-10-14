@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { NotificationType, Prisma, Stance } from "@prisma/client";
 import { prisma } from "../lib/prisma";
-import { listPosts, pageSize, postInclude, toPostDto } from "../lib/post";
+import { listPosts, listReposts, pageSize, postInclude, toPostDto } from "../lib/post";
 import { notify, unnotify } from "../lib/notify";
 import { authenticateJwt, AuthenticatedRequest } from "../middleware/auth";
 
@@ -17,15 +17,22 @@ function extractTickers(text: string): string[] {
   return Array.from(new Set(Array.from(text.matchAll(TICKER_RE), (m) => m[1])));
 }
 
-// GET /api/posts?ticker=DANGCEM&feed=following&author=<userId>&likedBy=<userId>&cursor=<postId>&limit=50
+// GET /api/posts?ticker=DANGCEM&feed=following&author=<userId>&likedBy=<userId>&repostedBy=<userId>&replies=1&cursor=<postId>&limit=50
 postsRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.userId!;
-    const { ticker, feed, author, likedBy, cursor } = req.query;
+    const { ticker, feed, author, likedBy, repostedBy, replies, cursor } = req.query;
+    if (typeof repostedBy === "string" && repostedBy) {
+      res.status(200).json(await listReposts(userId, repostedBy, { cursor, limit: pageSize(req.query.limit) }));
+      return;
+    }
+    const repliesOnly = replies === "1" || replies === "true";
 
     const where: Prisma.PostWhereInput = {};
     if (typeof likedBy === "string" && likedBy) {
       where.likes = { some: { userId: likedBy } };
+    } else if (repliesOnly) {
+      where.parentId = { not: null };
     } else {
       where.parentId = null;
     }

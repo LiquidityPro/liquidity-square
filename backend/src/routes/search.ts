@@ -41,6 +41,7 @@ searchRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<
               { firstName: { contains: term, mode: "insensitive" as const } },
               { lastName: { contains: term, mode: "insensitive" as const } },
               { email: { startsWith: term, mode: "insensitive" as const } },
+              { username: { contains: term, mode: "insensitive" as const } },
             ],
           })),
         },

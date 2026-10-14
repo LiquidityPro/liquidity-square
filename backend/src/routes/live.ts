@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { AUTHOR_SELECT, toAuthorDto } from "../lib/author";
 import { postInclude, toPostDto } from "../lib/post";
 import { authenticateJwt, AuthenticatedRequest } from "../middleware/auth";
+import { toMessageDto, unreadMessageCount } from "../lib/messages";
 
 export const liveRouter = Router();
 
@@ -24,8 +25,9 @@ liveRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<vo
     const parsed = typeof sinceRaw === "string" ? Date.parse(sinceRaw) : Number.NaN;
     const after = Number.isNaN(parsed) ? new Date(now.getTime() - LOOKBACK_MS) : new Date(parsed - OVERLAP_MS);
 
-    const [unreadCount, posts, notifications] = await Promise.all([
+    const [unreadCount, unreadMessages, posts, notifications, messages] = await Promise.all([
       prisma.notification.count({ where: { recipientId: userId, readAt: null } }),
+      unreadMessageCount(userId),
       prisma.post.findMany({
         where: { createdAt: { gt: after, lte: now } },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -45,12 +47,23 @@ liveRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<vo
           post: { select: { id: true, body: true } },
         },
       }),
+      prisma.directMessage.findMany({
+        where: {
+          createdAt: { gt: after, lte: now },
+          conversation: { OR: [{ userAId: userId }, { userBId: userId }] },
+        },
+        orderBy: { createdAt: "asc" },
+        take: LIVE_LIMIT,
+        include: { sender: { select: AUTHOR_SELECT } },
+      }),
     ]);
 
     res.status(200).json({
       now: now.toISOString(),
       unreadCount,
+      unreadMessages,
       posts: posts.map(toPostDto),
+      messages: messages.map((message) => toMessageDto(message, userId)),
       notifications: notifications.map((n) => ({
         id: n.id,
         type: n.type,

@@ -40,6 +40,7 @@ const providers: NextAuthOptions["providers"] = [
             firstName: data.user.firstName,
             lastName: data.user.lastName,
             image: data.user.image,
+            username: data.user.username ?? null,
             token: data.token,
           };
         }
@@ -115,6 +116,7 @@ export const authOptions: NextAuthOptions = {
           (user as any).id = data.user.id;
           (user as any).firstName = data.user.firstName;
           (user as any).lastName = data.user.lastName;
+          (user as any).username = data.user.username ?? null;
           (user as any).token = data.token;
           return true;
         } catch (err) {
@@ -124,12 +126,27 @@ export const authOptions: NextAuthOptions = {
       }
       return true;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
         token.firstName = (user as any).firstName;
         token.lastName = (user as any).lastName;
+        token.username = (user as any).username ?? null;
         token.token = (user as any).token;
+      }
+      if (trigger === "update" && session && typeof session === "object") {
+        const next = session as { name?: string; image?: string | null; username?: string };
+        if (typeof next.name === "string" && next.name.trim()) {
+          const name = next.name.trim();
+          const parts = name.split(/\s+/);
+          token.name = name;
+          token.firstName = parts[0];
+          token.lastName = parts.slice(1).join(" ");
+        }
+        if ("image" in next) token.picture = next.image ?? null;
+        if (typeof next.username === "string" && next.username.trim()) {
+          token.username = next.username.trim().replace(/^@/, "");
+        }
       }
       // Throw so NextAuth clears the cookie and returns an empty session.
       // Returning null still gets encoded and leaves the browser looking signed in.
@@ -143,6 +160,9 @@ export const authOptions: NextAuthOptions = {
         session.user.id = (token.id as string) || (token.sub as string);
         session.user.firstName = token.firstName as string;
         session.user.lastName = token.lastName as string;
+        if (typeof token.name === "string") session.user.name = token.name;
+        if (token.picture === null || typeof token.picture === "string") session.user.image = token.picture;
+        if (typeof token.username === "string") session.user.username = token.username;
         session.accessToken = token.token as string;
       }
       return session;

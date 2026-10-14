@@ -41,6 +41,15 @@ export function usePostList({
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadedKey, setLoadedKey] = useState(key);
+  if (loadedKey !== key) {
+    setLoadedKey(key);
+    setIds([]);
+    setCursor(null);
+    setLoading(true);
+    setLoadingMore(false);
+    setError(null);
+  }
 
   const fetchRef = useRef(fetchPage);
   useEffect(() => {

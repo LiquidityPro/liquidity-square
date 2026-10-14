@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { LuArrowLeft as ArrowLeft } from "react-icons/lu";
 import { cn } from "@/lib/utils";
 import { PostCard } from "./post-card";
+import type { Author } from "./data";
 import type { PostList } from "./use-post-list";
 
 /* Sticky glass header                                                 */
@@ -129,7 +130,17 @@ export function InlineError({ message }: { message: string }) {
 /* Feed with infinite scroll                                           */
 /* ------------------------------------------------------------------ */
 
-export function PostFeed({ list, empty, endLabel = "You're all caught up" }: { list: PostList; empty: ReactNode; endLabel?: string }) {
+export function PostFeed({
+  list,
+  empty,
+  endLabel = "You're all caught up",
+  repostedBy,
+}: {
+  list: PostList;
+  empty: ReactNode;
+  endLabel?: string;
+  repostedBy?: Author;
+}) {
   const { posts, loading, loadingMore, error, hasMore, loadMore } = list;
   const sentinel = useRef<HTMLDivElement>(null);
 
@@ -148,7 +159,7 @@ export function PostFeed({ list, empty, endLabel = "You're all caught up" }: { l
   return (
     <>
       {error && <InlineError message={error} />}
-      {posts.length > 0 ? posts.map((p) => <PostCard key={p.id} post={p} />) : !error && empty}
+      {posts.length > 0 ? posts.map((p) => <PostCard key={p.id} post={p} repostedBy={repostedBy} />) : !error && empty}
       {hasMore && <div ref={sentinel} aria-hidden="true" />}
       {loadingMore && <PostSkeleton count={1} />}
       {posts.length > 0 && !hasMore && (

@@ -6,6 +6,8 @@ export const AUTHOR_SELECT = {
   firstName: true,
   lastName: true,
   image: true,
+  username: true,
+  title: true,
 } satisfies Prisma.UserSelect;
 
 type AuthorRow = Prisma.UserGetPayload<{ select: typeof AUTHOR_SELECT }>;
@@ -16,9 +18,10 @@ export type AuthorDto = {
   handle: string;
   initials: string;
   image: string | null;
+  title: string | null;
 };
 
-// The handle mirrors the frontend's useCurrentAuthor(): the email's local part.
+// Stored username wins. Accounts that have not chosen one yet still show the email's local part.
 export function toAuthorDto(user: AuthorRow): AuthorDto {
   const name = `${user.firstName} ${user.lastName}`.trim() || user.email;
   const initials =
@@ -33,8 +36,9 @@ export function toAuthorDto(user: AuthorRow): AuthorDto {
   return {
     id: user.id,
     name,
-    handle: user.email.split("@")[0],
+    handle: user.username || user.email.split("@")[0],
     initials,
     image: user.image,
+    title: user.title,
   };
 }

@@ -43,9 +43,18 @@ export type Profile = Author & {
   id: string;
   joinedAt: string;
   posts: number;
+  replies: number;
+  reposts: number;
+  likes: number;
   followers: number;
   following: number;
   followedByMe: boolean;
+  bio?: string | null;
+  location?: string | null;
+  website?: string | null;
+  banner?: string | null;
+  title?: string | null;
+  titleLockedUntil?: string | null;
 };
 
 export type NotificationType = "like" | "follow" | "reply" | "repost";

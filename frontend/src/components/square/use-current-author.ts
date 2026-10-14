@@ -10,10 +10,11 @@ export function useCurrentAuthor(): Author {
   const sessionName = session?.user?.name;
   const sessionEmail = session?.user?.email;
   const sessionImage = session?.user?.image;
+  const sessionUsername = session?.user?.username;
 
   return useMemo(() => {
     const name = sessionName || ME.name;
-    const handle = sessionEmail ? sessionEmail.split("@")[0] : ME.handle;
+    const handle = sessionUsername || (sessionEmail ? sessionEmail.split("@")[0] : ME.handle);
     const initials =
       name
         .split(" ")
@@ -24,5 +25,5 @@ export function useCurrentAuthor(): Author {
         .toUpperCase() || "LQ";
 
     return { ...ME, id: sessionId, name, handle, initials, image: sessionImage ?? null };
-  }, [sessionId, sessionName, sessionEmail, sessionImage]);
+  }, [sessionId, sessionName, sessionEmail, sessionUsername, sessionImage]);
 }

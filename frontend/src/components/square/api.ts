@@ -7,6 +7,7 @@ type AuthorDto = {
   handle: string;
   initials: string;
   image: string | null;
+  title?: string | null;
 };
 
 type PostDto = {
@@ -72,7 +73,14 @@ export function relativeTime(iso: string): string {
 }
 
 function toAuthor(dto: AuthorDto): Author {
-  return { id: dto.id, name: dto.name, handle: dto.handle, initials: dto.initials, image: dto.image };
+  return {
+    id: dto.id,
+    name: dto.name,
+    handle: dto.handle,
+    initials: dto.initials,
+    image: dto.image,
+    role: dto.title ?? undefined,
+  };
 }
 
 function toPost(dto: PostDto): Post {
@@ -107,11 +115,26 @@ export type PostFilters = {
   feed?: "following";
   author?: string;
   likedBy?: string;
+  repostedBy?: string;
+  replies?: boolean;
   cursor?: string | null;
 };
 
 export async function fetchPosts(token: string, filters: PostFilters = {}): Promise<PostPage> {
-  return toPage(await request<PageDto>(`/posts${query(filters)}`, token));
+  return toPage(
+    await request<PageDto>(
+      `/posts${query({
+        ticker: filters.ticker,
+        feed: filters.feed,
+        author: filters.author,
+        likedBy: filters.likedBy,
+        repostedBy: filters.repostedBy,
+        replies: filters.replies ? "1" : undefined,
+        cursor: filters.cursor,
+      })}`,
+      token,
+    ),
+  );
 }
 
 export async function fetchPost(token: string, id: string): Promise<{ post: Post; parent: Post | null }> {
@@ -151,12 +174,43 @@ export function setReaction(token: string, postId: string, kind: Reaction, on: b
 /* Users                                                               */
 /* ------------------------------------------------------------------ */
 
+type ProfileDto = AuthorDto & Omit<Profile, keyof Author>;
+
+function toProfile(profile: ProfileDto): Profile {
+  return { ...profile, ...toAuthor(profile), id: profile.id };
+}
+
 export async function fetchProfile(token: string, id: string): Promise<Profile> {
-  const { profile } = await request<{ profile: AuthorDto & Omit<Profile, keyof Author> }>(
-    `/users/${encodeURIComponent(id)}`,
+  const { profile } = await request<{ profile: ProfileDto }>(`/users/${encodeURIComponent(id)}`, token);
+  return toProfile(profile);
+}
+
+export type ProfileUpdate = {
+  name: string;
+  username: string;
+  title: string | null;
+  bio: string;
+  location: string;
+  website: string;
+  image: string | null;
+  banner: string;
+};
+
+export async function updateProfile(token: string, input: ProfileUpdate): Promise<Profile> {
+  const { profile } = await request<{ profile: ProfileDto }>("/users/me", token, "PATCH", input);
+  return toProfile(profile);
+}
+
+export async function fetchConnections(
+  token: string,
+  id: string,
+  kind: "followers" | "following",
+): Promise<Author[]> {
+  const { users } = await request<{ users: AuthorDto[] }>(
+    `/users/${encodeURIComponent(id)}/${kind}`,
     token,
   );
-  return { ...profile, ...toAuthor(profile), id: profile.id };
+  return users.map(toAuthor);
 }
 
 export async function fetchFollowing(token: string): Promise<Author[]> {
@@ -246,28 +300,137 @@ export async function fetchNotifications(
 export type LiveUpdate = {
   now: string;
   unreadCount: number;
+  unreadMessages: number;
   posts: Post[];
   notifications: SquareNotification[];
+  messages: ChatMessage[];
 };
 
 export async function fetchLive(token: string, since: string | null): Promise<LiveUpdate> {
   const data = await request<{
     now: string;
     unreadCount: number;
+    unreadMessages?: number;
     posts: PostDto[];
     notifications: NotificationDto[];
+    messages?: ChatMessageDto[];
   }>(`/live${query({ since })}`, token);
   return {
     now: data.now,
     unreadCount: data.unreadCount,
+    unreadMessages: data.unreadMessages ?? 0,
     posts: data.posts.map(toPost),
     notifications: data.notifications.map(toNotification),
+    messages: (data.messages ?? []).map(toChatMessage),
   };
 }
 
 export async function fetchUnreadCount(token: string): Promise<number> {
   const { count } = await request<{ count: number }>("/notifications/unread-count", token);
   return count;
+}
+
+export type ChatMessage = {
+  id: string;
+  conversationId: string;
+  body: string;
+  createdAt: string;
+  mine: boolean;
+  sender: Author;
+  pending?: boolean;
+  failed?: boolean;
+};
+
+export type InboxThread = {
+  id: string;
+  with: Author;
+  unread: boolean;
+  lastMessage: { id: string; body: string; createdAt: string; mine: boolean } | null;
+};
+
+type ChatMessageDto = {
+  id: string;
+  conversationId: string;
+  body: string;
+  createdAt: string;
+  mine: boolean;
+  sender: AuthorDto;
+};
+
+function toChatMessage(dto: ChatMessageDto): ChatMessage {
+  return { ...dto, sender: toAuthor(dto.sender) };
+}
+
+export async function fetchInbox(token: string): Promise<InboxThread[]> {
+  const { conversations } = await request<{
+    conversations: Array<Omit<InboxThread, "with"> & { with: AuthorDto }>;
+  }>("/messages", token);
+  return conversations.map((thread) => ({ ...thread, with: toAuthor(thread.with) }));
+}
+
+export async function fetchThreadWith(token: string, userId: string): Promise<string | null> {
+  const { conversationId } = await request<{ conversationId: string | null }>(
+    `/messages/with/${encodeURIComponent(userId)}`,
+    token,
+  );
+  return conversationId;
+}
+
+export async function fetchThread(
+  token: string,
+  id: string,
+  cursor?: string | null,
+): Promise<{ with: Author; messages: ChatMessage[]; nextCursor: string | null }> {
+  const data = await request<{
+    conversation: { id: string; with: AuthorDto };
+    messages: ChatMessageDto[];
+    nextCursor: string | null;
+  }>(`/messages/${encodeURIComponent(id)}${query({ cursor })}`, token);
+  return {
+    with: toAuthor(data.conversation.with),
+    messages: data.messages.map(toChatMessage),
+    nextCursor: data.nextCursor,
+  };
+}
+
+export async function startConversation(
+  token: string,
+  userId: string,
+  body: string,
+): Promise<{ conversationId: string; message: ChatMessage; unreadMessages: number }> {
+  const data = await request<{
+    conversation: { id: string; with: AuthorDto };
+    message: ChatMessageDto;
+    unreadMessages: number;
+  }>("/messages", token, "POST", { userId, body });
+  return {
+    conversationId: data.conversation.id,
+    message: toChatMessage(data.message),
+    unreadMessages: data.unreadMessages,
+  };
+}
+
+export async function sendChatMessage(
+  token: string,
+  conversationId: string,
+  body: string,
+): Promise<{ message: ChatMessage; unreadMessages: number }> {
+  const data = await request<{ message: ChatMessageDto; unreadMessages: number }>(
+    `/messages/${encodeURIComponent(conversationId)}`,
+    token,
+    "POST",
+    { body },
+  );
+  return { message: toChatMessage(data.message), unreadMessages: data.unreadMessages };
+}
+
+export async function markConversationRead(token: string, conversationId: string): Promise<number> {
+  const { unreadMessages } = await request<{ unreadMessages: number }>(
+    `/messages/${encodeURIComponent(conversationId)}/read`,
+    token,
+    "POST",
+  );
+  return unreadMessages;
 }
 
 export async function markNotificationsRead(token: string): Promise<void> {

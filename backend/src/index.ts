@@ -9,6 +9,7 @@ import { searchRouter } from "./routes/search";
 import { notificationsRouter } from "./routes/notifications";
 import { liveRouter } from "./routes/live";
 import { pushRouter } from "./routes/push";
+import { messagesRouter } from "./routes/messages";
 import { ensureListedTickers } from "./lib/listed-tickers";
 
 dotenv.config({ quiet: true });
@@ -24,7 +25,7 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: "300kb" }));
 
 // Vercel's /api/server/* rewrite forwards the original path, so strip the prefix before routing.
 app.use((req, _res, next) => {
@@ -48,6 +49,7 @@ app.use("/api/search", searchRouter);
 app.use("/api/notifications", notificationsRouter);
 app.use("/api/live", liveRouter);
 app.use("/api/push", pushRouter);
+app.use("/api/messages", messagesRouter);
 
 void ensureListedTickers();
 
