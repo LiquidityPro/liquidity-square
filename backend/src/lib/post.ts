@@ -62,3 +62,42 @@ export async function listPosts(
     nextCursor: posts.length > limit ? page[page.length - 1].id : null,
   };
 }
+
+/** Posts this person has reposted, newest repost first. */
+export async function listReposts(
+  viewerId: string,
+  reposterId: string,
+  { cursor, limit }: { cursor?: unknown; limit: number },
+) {
+  const cursorId = typeof cursor === "string" && cursor ? cursor : null;
+  const cursorRow = cursorId
+    ? await prisma.repost.findUnique({
+        where: { userId_postId: { userId: reposterId, postId: cursorId } },
+        select: { createdAt: true },
+      })
+    : null;
+  if (cursorId && !cursorRow) return { posts: [], nextCursor: null };
+
+  const rows = await prisma.repost.findMany({
+    where: {
+      userId: reposterId,
+      ...(cursorRow && cursorId
+        ? {
+            OR: [
+              { createdAt: { lt: cursorRow.createdAt } },
+              { createdAt: cursorRow.createdAt, postId: { lt: cursorId } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: [{ createdAt: "desc" }, { postId: "desc" }],
+    take: limit + 1,
+    include: { post: { include: postInclude(viewerId) } },
+  });
+
+  const page = rows.slice(0, limit);
+  return {
+    posts: page.map((row) => toPostDto(row.post)),
+    nextCursor: rows.length > limit ? page[page.length - 1].postId : null,
+  };
+}

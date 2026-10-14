@@ -6,13 +6,12 @@ import { usePathname } from "next/navigation";
 import {
   LuFeather as Feather,
   LuEllipsis as More,
-  LuLock as Lock,
   LuLogOut as LogOut,
   LuSearch as Search,
 } from "react-icons/lu";
 import { cn } from "@/lib/utils";
 import { signOutSession } from "@/lib/session";
-import { NavBadge, navItemActive, ThemeToggle, useNavItems } from "./navigation";
+import { NavBadge, navItemActive, ThemeToggle, useMoreItems, useNavItems } from "./navigation";
 import { Avatar } from "./avatar";
 import { useCurrentAuthor } from "./use-current-author";
 import { InstallAppButton } from "@/components/pwa/install-button";
@@ -28,7 +27,12 @@ export function MobileBar({ onCompose }: { onCompose: () => void }) {
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const me = useCurrentAuthor();
-  const items = useNavItems().filter((item) => MOBILE_LABELS.includes(item.label));
+  const navItems = useNavItems();
+  const items = navItems.filter((item) => MOBILE_LABELS.includes(item.label));
+  const moreLinks = [
+    ...navItems.filter((item) => item.href && !MOBILE_LABELS.includes(item.label)),
+    ...useMoreItems(),
+  ];
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -58,16 +62,20 @@ export function MobileBar({ onCompose }: { onCompose: () => void }) {
     };
   }, [moreOpen]);
 
+  const inThread = /^\/square\/messages\/.+/.test(pathname);
+
   return (
     <>
-      <button
-        type="button"
-        onClick={onCompose}
-        aria-label="Write a post"
-        className="fixed bottom-20 right-4 z-40 grid size-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-[0_0_30px_-6px_var(--primary)] transition active:scale-[0.96] sm:hidden"
-      >
-        <Feather className="size-6" />
-      </button>
+      {!inThread && (
+        <button
+          type="button"
+          onClick={onCompose}
+          aria-label="Write a post"
+          className="fixed bottom-20 right-4 z-40 grid size-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-[0_0_30px_-6px_var(--primary)] transition active:scale-[0.96] sm:hidden"
+        >
+          <Feather className="size-6" />
+        </button>
+      )}
       {moreOpen && (
         <div
           ref={moreMenuRef}
@@ -82,18 +90,21 @@ export function MobileBar({ onCompose }: { onCompose: () => void }) {
               <p className="truncate text-xs text-muted-foreground">@{me.handle}</p>
             </div>
           </div>
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            className="flex min-h-11 w-full items-center gap-3 rounded-lg px-2 text-left text-sm text-muted-foreground"
-          >
-            <Lock className="size-5" aria-hidden="true" />
-            <span className="flex-1">Pro rooms</span>
-            <span className="label-mono rounded border border-primary/40 px-1.5 text-[0.6rem] text-primary">
-              Soon
-            </span>
-          </button>
+          {moreLinks.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.label}
+                href={item.href ?? "/square"}
+                onClick={() => setMoreOpen(false)}
+                className="flex min-h-11 w-full items-center gap-3 rounded-lg px-2 text-left text-sm transition-colors hover:bg-background"
+              >
+                <Icon className="size-5" aria-hidden="true" />
+                <span className="flex-1">{item.label}</span>
+                <NavBadge count={item.badge} className="static" />
+              </Link>
+            );
+          })}
           <InstallAppButton variant="menu" />
           <div className="flex min-h-11 items-center justify-between gap-3 rounded-lg px-2">
             <span className="text-sm">Appearance</span>

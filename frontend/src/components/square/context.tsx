@@ -22,6 +22,7 @@ import {
   markNotificationsRead,
   setFollowing,
   setReaction,
+  type ChatMessage,
   type LiveUpdate,
   type Reaction,
 } from "./api";
@@ -51,6 +52,11 @@ type SquareContextType = {
   following: Set<string>;
   toggleFollow: (author: Author) => void;
   unreadCount: number;
+  /** Conversations with a message you have not opened. */
+  unreadMessages: number;
+  setUnreadMessages: (count: number) => void;
+  /** Direct messages that arrived while this session was open, oldest first. */
+  incomingMessages: ChatMessage[];
   markAllRead: () => void;
 };
 
@@ -98,6 +104,8 @@ export function SquareProvider({ children }: { children: ReactNode }) {
   const [incomingNotifications, setIncomingNotifications] = useState<SquareNotification[]>([]);
   const [following, setFollowingIds] = useState<Set<string>>(() => new Set());
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [incomingMessages, setIncomingMessages] = useState<ChatMessage[]>([]);
   const readEpoch = useRef(0);
 
   const postsRef = useRef(postsById);
@@ -121,8 +129,10 @@ export function SquareProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (token) return;
     setUnreadCount(0);
+    setUnreadMessages(0);
     setIncomingIds([]);
     setIncomingNotifications([]);
+    setIncomingMessages([]);
   }, [token]);
 
   const cachePosts = useCallback((posts: Post[]) => {
@@ -194,7 +204,16 @@ export function SquareProvider({ children }: { children: ReactNode }) {
       startTransition(() => {
         if (update.posts.length > 0) addIncomingPosts(update.posts);
         if (update.notifications.length > 0) addIncomingNotifications(update.notifications);
+        if (update.messages.length > 0) {
+          setIncomingMessages((prev) => {
+            const seen = new Set(prev.map((item) => item.id));
+            const fresh = update.messages.filter((item) => !seen.has(item.id));
+            if (fresh.length === 0) return prev;
+            return [...prev, ...fresh].slice(-100);
+          });
+        }
         if (epochAtStart === readEpoch.current) setUnreadCount(update.unreadCount);
+        setUnreadMessages(update.unreadMessages);
       });
       for (const item of update.notifications) {
         if (baseline) {
@@ -207,6 +226,19 @@ export function SquareProvider({ children }: { children: ReactNode }) {
           description: item.post?.body,
           duration: 8000,
           action: { label: "View", onClick: () => router.push(href) },
+        });
+      }
+      for (const message of update.messages) {
+        if (baseline || message.mine) continue;
+        if (window.location.pathname === `/square/messages/${message.conversationId}`) continue;
+        if (document.visibilityState !== "visible" || !claimToast(message.id)) continue;
+        toast(`${message.sender.name} sent you a message`, {
+          description: message.body,
+          duration: 8000,
+          action: {
+            label: "View",
+            onClick: () => router.push(`/square/messages/${message.conversationId}`),
+          },
         });
       }
     },
@@ -380,6 +412,9 @@ export function SquareProvider({ children }: { children: ReactNode }) {
       following,
       toggleFollow,
       unreadCount,
+      unreadMessages,
+      setUnreadMessages,
+      incomingMessages,
       markAllRead,
     }),
     [
@@ -390,6 +425,7 @@ export function SquareProvider({ children }: { children: ReactNode }) {
       recentIds,
       incomingIds,
       incomingNotifications,
+      incomingMessages,
       cachePosts,
       publish,
       deletePost,
@@ -399,6 +435,7 @@ export function SquareProvider({ children }: { children: ReactNode }) {
       following,
       toggleFollow,
       unreadCount,
+      unreadMessages,
       markAllRead,
     ],
   );

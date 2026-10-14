@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "users" ADD COLUMN "bio" VARCHAR(160),
+ADD COLUMN "location" VARCHAR(30),
+ADD COLUMN "website" VARCHAR(100),
+ADD COLUMN "banner" VARCHAR(20);

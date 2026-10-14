@@ -60,6 +60,7 @@ authRouter.post("/register", async (req: Request, res: Response): Promise<void> 
         firstName: user.firstName,
         lastName: user.lastName,
         image: user.image,
+        username: user.username,
       },
       token,
     });
@@ -115,6 +116,7 @@ authRouter.post("/login", async (req: Request, res: Response): Promise<void> => 
         firstName: user.firstName,
         lastName: user.lastName,
         image: user.image,
+        username: user.username,
       },
       token,
     });
@@ -166,6 +168,7 @@ authRouter.post("/google", async (req: Request, res: Response): Promise<void> =>
         firstName: user.firstName,
         lastName: user.lastName,
         image: user.image,
+        username: user.username,
       },
       token,
     });
@@ -186,6 +189,7 @@ authRouter.get("/me", authenticateJwt, async (req: AuthenticatedRequest, res: Re
         firstName: true,
         lastName: true,
         image: true,
+        username: true,
         createdAt: true,
       },
     });

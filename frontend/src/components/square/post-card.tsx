@@ -20,10 +20,11 @@ import {
 } from "react-icons/lu";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import { roomHref } from "./x-samples";
 import { Avatar, Verified } from "./avatar";
 import { cn } from "@/lib/utils";
 import { isPendingPost, useSquare } from "./context";
-import { TICKER_RE, compact, type Author, type Post, type Stance } from "./data";
+import { compact, type Author, type Post, type Stance } from "./data";
 import { useCurrentAuthor } from "./use-current-author";
 import {
   DropdownMenu,
@@ -58,26 +59,41 @@ export async function copyPostLink(id: string) {
 /* Post body with clickable $TICKERS                                   */
 /* ------------------------------------------------------------------ */
 
+const RICH_RE = /(\$[A-Z]{2,12}|@[A-Za-z0-9_]{1,30})/g;
+
 function RichText({ text, onTicker }: { text: string; onTicker: (t: string) => void }) {
   return (
     <>
-      {text.split(TICKER_RE).map((part, i) =>
-        /^\$[A-Z]{2,12}$/.test(part) ? (
-          <button
-            key={i}
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onTicker(part.slice(1));
-            }}
-            className="font-mono text-primary hover:underline"
-          >
-            {part}
-          </button>
-        ) : (
-          <span key={i}>{part}</span>
-        ),
-      )}
+      {text.split(RICH_RE).map((part, i) => {
+        if (/^\$[A-Z]{2,12}$/.test(part)) {
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onTicker(part.slice(1));
+              }}
+              className="font-mono text-primary hover:underline"
+            >
+              {part}
+            </button>
+          );
+        }
+        if (/^@[A-Za-z0-9_]{1,30}$/.test(part)) {
+          return (
+            <Link
+              key={i}
+              href={`/square/u/${part.slice(1).toLowerCase()}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-primary hover:underline"
+            >
+              {part}
+            </Link>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
     </>
   );
 }
@@ -108,6 +124,26 @@ function AuthorLink({ author, className, children }: { author: Author; className
   );
 }
 
+function RepostedBy({ author }: { author: Author }) {
+  const me = useCurrentAuthor();
+  const mine = !!author.id && author.id === me.id;
+  return (
+    <p className="mb-1 flex items-center gap-1.5 text-[13px] font-semibold text-muted-foreground">
+      <Repeat2 className="size-3.5" aria-hidden="true" />
+      {mine ? (
+        "You reposted"
+      ) : (
+        <>
+          <AuthorLink author={author} className="hover:underline">
+            {author.name}
+          </AuthorLink>{" "}
+          reposted
+        </>
+      )}
+    </p>
+  );
+}
+
 function ReplyingTo({ author }: { author: Author }) {
   return (
     <p className="text-sm text-muted-foreground">
@@ -132,9 +168,11 @@ type PostCardProps = {
   threadLine?: boolean;
   onReply?: () => void;
   onDeleted?: () => void;
+  /** Set on a profile Reposts tab so the card says who reposted it. */
+  repostedBy?: Author;
 };
 
-export function PostCard({ post, onTicker, variant = "feed", threadLine, onReply, onDeleted }: PostCardProps) {
+export function PostCard({ post, onTicker, variant = "feed", threadLine, onReply, onDeleted, repostedBy }: PostCardProps) {
   const router = useRouter();
   const pending = isPendingPost(post.id);
   const detail = variant === "detail";
@@ -219,6 +257,7 @@ export function PostCard({ post, onTicker, variant = "feed", threadLine, onReply
         {threadLine && <span aria-hidden="true" className="mt-1 w-0.5 flex-1 rounded-full bg-border" />}
       </div>
       <div className={cn("min-w-0 flex-1", threadLine && "pb-3")}>
+        {repostedBy && <RepostedBy author={repostedBy} />}
         <header className="flex items-center gap-1.5 text-[0.95rem]">
           <AuthorLink author={post.author} className="truncate font-semibold hover:underline">
             {post.author.name}
@@ -548,11 +587,15 @@ function PollBlock({ poll, onTicker }: { poll: NonNullable<Post["poll"]>; onTick
 
 function RoomBlock({ room }: { room: NonNullable<Post["room"]> }) {
   return (
-    <div className="mt-3 rounded-xl bg-paper p-4 text-paper-foreground">
+    <Link
+      href={roomHref(room.title)}
+      onClick={(event) => event.stopPropagation()}
+      className="mt-3 block rounded-xl bg-paper p-4 text-paper-foreground transition hover:opacity-95"
+    >
       <div className="flex items-center justify-between">
         <span className="label-mono">Pro room · {room.analyst}</span>
         <span className="label-mono inline-flex items-center gap-1 rounded bg-paper-foreground px-2 py-0.5 text-paper">
-          <Lock className="size-3" /> Locked
+          <Lock className="size-3" /> Sample
         </span>
       </div>
       <p className="mt-2 font-display text-lg font-bold">{room.title}</p>
@@ -560,7 +603,7 @@ function RoomBlock({ room }: { room: NonNullable<Post["room"]> }) {
         <div className="h-2.5 w-full rounded bg-paper-foreground/15" />
         <div className="h-2.5 w-4/5 rounded bg-paper-foreground/15" />
       </div>
-      <p className="label-mono mt-3 opacity-70">Liquidity Pro · coming soon</p>
-    </div>
+      <p className="label-mono mt-3 opacity-70">Open the sample room</p>
+    </Link>
   );
 }

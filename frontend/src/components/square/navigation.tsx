@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/components/theme-provider";
@@ -8,14 +9,19 @@ import type { IconType } from "react-icons";
 import {
   LuBell as Bell,
   LuBookmark as Bookmark,
+  LuEllipsis as Ellipsis,
   LuFeather as Feather,
   LuHash as Hash,
   LuHouse as House,
+  LuList as List,
   LuLock as Lock,
   LuLogOut as LogOut,
+  LuMail as Mail,
   LuMoon as Moon,
+  LuSettings as Settings,
   LuSun as Sun,
   LuUser as User,
+  LuUsers as Users,
 } from "react-icons/lu";
 import { Logo } from "@/components/site";
 import { InstallAppButton } from "@/components/pwa/install-button";
@@ -40,19 +46,22 @@ const isProfilePath = (pathname: string, href?: string) => !!href && pathname ==
 
 /** Ticker rooms and post threads live under /square too, so they count as Home. */
 function isHomePath(pathname: string) {
-  return !/^\/square\/(explore|notifications|bookmarks|u)(\/|$)/.test(pathname);
+  return !/^\/square\/(explore|notifications|bookmarks|messages|rooms|lists|communities|settings|u)(\/|$)/.test(
+    pathname,
+  );
 }
 
 export function useNavItems(): NavItem[] {
   const me = useCurrentAuthor();
-  const { unreadCount } = useSquare();
+  const { unreadCount, unreadMessages } = useSquare();
   const profileHref = me.id ? `/square/u/${me.id}` : undefined;
 
   return [
     { icon: House, label: "Home", href: "/square", isActive: isHomePath },
     { icon: Hash, label: "Explore", href: "/square/explore" },
     { icon: Bell, label: "Notifications", href: "/square/notifications", badge: unreadCount },
-    { icon: Lock, label: "Pro rooms", soon: true },
+    { icon: Mail, label: "Messages", href: "/square/messages", badge: unreadMessages },
+    { icon: Lock, label: "Pro rooms", href: "/square/rooms" },
     { icon: Bookmark, label: "Bookmarks", href: "/square/bookmarks" },
     {
       icon: User,
@@ -60,6 +69,14 @@ export function useNavItems(): NavItem[] {
       href: profileHref,
       isActive: (pathname) => isProfilePath(pathname, profileHref),
     },
+  ];
+}
+
+export function useMoreItems(): NavItem[] {
+  return [
+    { icon: List, label: "Lists", href: "/square/lists" },
+    { icon: Users, label: "Communities", href: "/square/communities" },
+    { icon: Settings, label: "Settings", href: "/square/settings" },
   ];
 }
 
@@ -72,6 +89,7 @@ export function NavBadge({ count, className }: { count?: number; className?: str
   if (!count) return null;
   return (
     <span
+      aria-hidden="true"
       className={cn(
         "absolute grid min-w-4 place-items-center rounded-full bg-primary px-1 font-mono text-[0.6rem] font-bold text-primary-foreground",
         className,
@@ -86,9 +104,26 @@ export function LeftNav({ onCompose }: { onCompose: () => void }) {
   const me = useCurrentAuthor();
   const pathname = usePathname();
   const items = useNavItems();
+  const moreItems = useMoreItems();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  const moreActive = moreItems.some((item) => navItemActive(item, pathname));
+
+  useEffect(() => {
+    setMoreOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const close = (event: PointerEvent) => {
+      if (event.target instanceof Node && !moreRef.current?.contains(event.target)) setMoreOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [moreOpen]);
 
   return (
-    <aside className="sticky top-10 hidden h-[calc(100dvh-2.5rem)] min-h-[calc(100dvh-2.5rem)] w-[76px] shrink-0 flex-col justify-between overflow-x-clip px-2 py-3 sm:flex xl:w-[260px] xl:px-3">
+    <aside className="sticky top-10 hidden h-[calc(100dvh-2.5rem)] min-h-[calc(100dvh-2.5rem)] w-[76px] shrink-0 flex-col justify-between overflow-visible px-2 py-3 sm:flex xl:w-[260px] xl:px-3">
       <div className="flex flex-col items-center gap-1 xl:items-stretch">
         <div className="mb-5 px-2">
           <Logo />
@@ -115,7 +150,14 @@ export function LeftNav({ onCompose }: { onCompose: () => void }) {
             );
 
             return href ? (
-              <Link key={label} href={href} aria-current={active ? "page" : undefined} title={label} className={className}>
+              <Link
+                key={label}
+                href={href}
+                aria-current={active ? "page" : undefined}
+                aria-label={badge ? `${label}, ${badge} new` : label}
+                title={label}
+                className={className}
+              >
                 {content}
               </Link>
             ) : (
@@ -124,6 +166,45 @@ export function LeftNav({ onCompose }: { onCompose: () => void }) {
               </button>
             );
           })}
+          <div ref={moreRef} className="relative">
+            <button
+              type="button"
+              aria-expanded={moreOpen}
+              aria-controls="desktop-more-menu"
+              onClick={() => setMoreOpen((open) => !open)}
+              className={cn(
+                "relative flex min-h-12 w-full items-center gap-4 rounded-full px-3 text-lg transition-colors hover:bg-card xl:pr-5",
+                moreActive || moreOpen ? "font-bold" : "text-foreground/85",
+              )}
+            >
+              <Ellipsis className={cn("size-6", moreActive && "text-primary")} strokeWidth={moreActive ? 2.5 : 2} />
+              <span className="hidden xl:inline">More</span>
+            </button>
+            {moreOpen && (
+              <div
+                id="desktop-more-menu"
+                className="absolute bottom-14 left-0 z-50 w-56 rounded-2xl border bg-card p-2 shadow-xl max-xl:left-12"
+              >
+                {moreItems.map((item) => {
+                  const active = navItemActive(item, pathname);
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.label}
+                      href={item.href ?? "/square"}
+                      className={cn(
+                        "flex min-h-11 items-center gap-3 rounded-full px-3 text-base hover:bg-background",
+                        active && "font-bold",
+                      )}
+                    >
+                      <Icon className="size-5" aria-hidden="true" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </nav>
         <button
           type="button"
