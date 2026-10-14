@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LuSearch as Search } from "react-icons/lu";
-import { motion } from "framer-motion";
 import { UserRow } from "./user-row";
-import { TRENDING, TOP_MOVERS, compact, getTickerData, type Author, type TickerSummary } from "./data";
+import { TRENDING, compact, getTickerData, type Author, type TickerSummary } from "./data";
 import { fetchSuggested, fetchTickers } from "./api";
 import { useSquare } from "./context";
+import { useMarketTape } from "./use-market-tape";
+import { formatChange, formatNaira, formatSession, topMovers } from "@/lib/market/quotes";
+import type { TapeQuote } from "@/lib/market/tape";
+import { cn } from "@/lib/utils";
 
 /* Right rail                                                          */
 /* ------------------------------------------------------------------ */
@@ -38,7 +41,10 @@ export function RightRail({ activeTicker }: { activeTicker?: string }) {
   const [q, setQ] = useState("");
   const [tickers, setTickers] = useState<TickerSummary[]>([]);
   const [suggested, setSuggested] = useState<Author[]>([]);
+  const { snapshot, failed: tapeFailed } = useMarketTape();
+  const movers = useMemo(() => topMovers(snapshot?.quotes ?? []), [snapshot]);
   const tickerData = activeTicker ? getTickerData(activeTicker) : null;
+  const sessionLabel = snapshot ? formatSession(snapshot.sessionDate) : tapeFailed ? "Unavailable" : "Loading";
 
   useEffect(() => {
     if (!ready || !token) return;
@@ -166,26 +172,26 @@ export function RightRail({ activeTicker }: { activeTicker?: string }) {
             <section className="rounded-2xl border bg-card pb-2">
               <div className="flex items-center justify-between px-4 pb-2 pt-3">
                 <h2 className="text-xl font-bold">Top Movers</h2>
-                <span className="label-mono rounded border px-1.5 py-0.5 !text-[0.6rem] text-muted-foreground">
-                  Illustrative
+                <span
+                  className="label-mono rounded border px-1.5 py-0.5 !text-[0.6rem] text-muted-foreground"
+                  title={snapshot ? `NGX session ${snapshot.sessionDate}` : "NGX session"}
+                >
+                  {sessionLabel}
                 </span>
               </div>
 
-              <div className="px-4">
-                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-primary opacity-80">Gainers</h3>
-                <ul className="mb-4 space-y-1">
-                  {TOP_MOVERS.gainers.map((m) => (
-                    <MoverRow key={m.ticker} ticker={m.ticker} price={m.price} change={m.change} up />
-                  ))}
-                </ul>
-
-                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-bear opacity-80">Losers</h3>
-                <ul className="space-y-1">
-                  {TOP_MOVERS.losers.map((m) => (
-                    <MoverRow key={m.ticker} ticker={m.ticker} price={m.price} change={m.change} />
-                  ))}
-                </ul>
-              </div>
+              <MoverList
+                label="Gainers"
+                quotes={movers.gainers}
+                tone="up"
+                empty={snapshot ? "No gainers yet." : tapeFailed ? "Session unavailable." : "Loading the session…"}
+              />
+              <MoverList
+                label="Losers"
+                quotes={movers.losers}
+                tone="down"
+                empty={snapshot ? "No losers yet." : tapeFailed ? "Session unavailable." : "Loading the session…"}
+              />
             </section>
           </>
         )}
@@ -225,42 +231,62 @@ export function RightRail({ activeTicker }: { activeTicker?: string }) {
   );
 }
 
-function MoverRow({
-  ticker,
-  price,
-  change,
-  up,
+function MoverList({
+  label,
+  quotes,
+  tone,
+  empty,
 }: {
-  ticker: string;
-  price: number;
-  change: number;
-  up?: boolean;
+  label: string;
+  quotes: TapeQuote[];
+  tone: "up" | "down";
+  empty: string;
 }) {
+  return (
+    <div className="pb-2">
+      <h3
+        className={cn(
+          "px-4 pb-1 pt-1 text-xs font-bold uppercase tracking-wider",
+          tone === "up" ? "text-primary" : "text-bear",
+        )}
+      >
+        {label}
+        {quotes.length > 0 && quotes.length < 10 && (
+          <span className="ml-2 font-mono text-[0.65rem] font-medium normal-case tracking-normal text-muted-foreground">
+            {quotes.length} printed
+          </span>
+        )}
+      </h3>
+      {quotes.length === 0 ? (
+        <p className="px-4 py-2 text-sm text-muted-foreground">{empty}</p>
+      ) : (
+        <ol>
+          {quotes.map((quote) => (
+            <li key={quote.symbol}>
+              <MoverRow quote={quote} tone={tone} />
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+function MoverRow({ quote, tone }: { quote: TapeQuote; tone: "up" | "down" }) {
   const router = useRouter();
   return (
-    <motion.li
-      whileHover={{ scale: 1.02, x: 4 }}
-      whileTap={{ scale: 0.98 }}
-      transition={{ type: "spring", stiffness: 400, damping: 25 }}
-      className="flex cursor-pointer items-center justify-between rounded-lg px-2 py-1.5 transition-colors hover:bg-background/80"
-      onClick={() => router.push(`/square/${ticker}`)}
+    <button
+      type="button"
+      onClick={() => router.push(`/square/${quote.symbol}`)}
+      className="flex w-full items-center justify-between gap-3 px-4 py-2 text-left transition-colors hover:bg-background/60"
     >
-      <div>
-        <button type="button" className="font-mono text-sm font-semibold">
-          ${ticker}
-        </button>
-        <p className="font-mono text-xs text-muted-foreground">₦{price.toFixed(2)}</p>
-      </div>
-      <span
-        className={
-          up
-            ? "rounded border border-primary/20 bg-primary/10 px-2 py-1 text-xs font-bold text-primary shadow-sm"
-            : "rounded border border-bear/20 bg-bear/10 px-2 py-1 text-xs font-bold text-bear shadow-sm"
-        }
-      >
-        {up ? "+" : ""}
-        {change}%
+      <span className="font-mono text-sm font-semibold">${quote.symbol}</span>
+      <span className="flex shrink-0 items-center gap-3 font-mono">
+        <span className="text-xs text-muted-foreground">₦{formatNaira(quote.price)}</span>
+        <span className={cn("text-xs font-bold", tone === "up" ? "text-primary" : "text-bear")}>
+          {formatChange(quote.changePct)}
+        </span>
       </span>
-    </motion.li>
+    </button>
   );
 }
