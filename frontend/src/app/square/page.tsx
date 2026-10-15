@@ -1,17 +1,19 @@
 "use client";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/site";
 import { Composer, EmptyState, PostFeed, TabBar } from "@/components/square/parts";
 import { useSquare } from "@/components/square/context";
-import { fetchPosts } from "@/components/square/api";
+import { fetchPosts, fetchWatchlist } from "@/components/square/api";
 import type { Post } from "@/components/square/data";
 import { useCurrentAuthor } from "@/components/square/use-current-author";
 import { usePostList } from "@/components/square/use-post-list";
+import { WeekStrip } from "@/components/square/week-strip";
 
-type Tab = "for-you" | "following" | "verified";
+type Tab = "for-you" | "following" | "watchlist" | "verified";
 const TABS: { id: Tab; label: string }[] = [
   { id: "for-you", label: "For you" },
   { id: "following", label: "Following" },
+  { id: "watchlist", label: "Watchlist" },
   { id: "verified", label: "Verified" },
 ];
 
@@ -19,27 +21,47 @@ const isTopLevel = (p: Post) => !p.parentId;
 const isVerified = (p: Post) => !!p.author.verified;
 
 export default function SquareIndex() {
-  const { publish, following } = useSquare();
+  const { publish, following, token, ready } = useSquare();
   const me = useCurrentAuthor();
   const [tab, setTab] = useState<Tab>("for-you");
+  const [watched, setWatched] = useState<Set<string>>(new Set());
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
+  useEffect(() => {
+    if (!ready || !token) return;
+    let cancelled = false;
+    fetchWatchlist(token)
+      .then((rows) => {
+        if (!cancelled) setWatched(new Set(rows.map((row) => row.symbol)));
+      })
+      .catch(() => {
+        if (!cancelled) setWatched(new Set());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, ready, tab]);
+
   const fetchPage = useCallback(
-    (token: string, cursor: string | null) =>
-      fetchPosts(token, { cursor, feed: tab === "following" ? "following" : undefined }),
+    (authToken: string, cursor: string | null) =>
+      fetchPosts(authToken, {
+        cursor,
+        feed: tab === "following" ? "following" : tab === "watchlist" ? "watchlist" : undefined,
+      }),
     [tab],
   );
   const includeRecent = useCallback(
     (post: Post) => {
       if (!isTopLevel(post)) return false;
+      if (tab === "watchlist") return post.tickers.some((ticker) => watched.has(ticker));
       if (tab !== "following") return true;
       const authorId = post.author.id;
       return authorId === me.id || (!!authorId && following.has(authorId));
     },
-    [tab, me.id, following],
+    [tab, me.id, following, watched],
   );
   const list = usePostList({
-    key: tab === "following" ? "home:following" : "home:all",
+    key: tab === "following" ? "home:following" : tab === "watchlist" ? "home:watchlist" : "home:all",
     fetchPage,
     includeRecent,
     keep: tab === "verified" ? isVerified : undefined,
@@ -61,7 +83,8 @@ export default function SquareIndex() {
         </div>
       </header>
 
-      <Composer ref={composerRef} onPost={(body, stance) => publish(body, stance)} />
+      <Composer ref={composerRef} onPost={(body, stance, extras) => publish(body, stance, null, extras)} />
+      <WeekStrip />
 
       <PostFeed
         list={list}
@@ -70,6 +93,8 @@ export default function SquareIndex() {
             <EmptyState title="Quiet on the floor" body="Be the first to share a thesis. Tag a ticker like $DANGCEM." />
           ) : tab === "following" ? (
             <EmptyState title="Quiet on the floor" body="Follow some voices to fill this tab." />
+          ) : tab === "watchlist" ? (
+            <EmptyState title="Your watchlist is quiet" body="Follow a name from its ticker room. Posts about those names land here." />
           ) : (
             <EmptyState title="No verified voices yet" body="Verified analysts and institutions will show up here." />
           )

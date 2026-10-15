@@ -6,6 +6,7 @@ import {
   LuChevronRight as ChevronRight,
   LuLock as Lock,
   LuMail as Mail,
+  LuShield as Shield,
   LuUser as User,
   LuUsers as Users,
   LuList as List,
@@ -15,6 +16,7 @@ import { PageHeader, ThemeToggle } from "@/components/square/parts";
 import { useCurrentAuthor } from "@/components/square/use-current-author";
 
 const LINKS: { href: string; label: string; icon: IconType; hint: string }[] = [
+  { href: "/square/settings/safety", label: "Muted and blocked", icon: Shield, hint: "People you've quieted" },
   { href: "/square/messages", label: "Messages", icon: Mail, hint: "Direct messages" },
   { href: "/square/rooms", label: "Pro rooms", icon: Lock, hint: "Analyst desks" },
   { href: "/square/lists", label: "Lists", icon: List, hint: "Curated voices" },

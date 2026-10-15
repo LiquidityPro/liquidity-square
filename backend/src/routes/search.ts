@@ -4,6 +4,7 @@ import { AUTHOR_SELECT, toAuthorDto } from "../lib/author";
 import { listPosts } from "../lib/post";
 import { authenticateJwt, AuthenticatedRequest } from "../middleware/auth";
 import { ensureListedTickers } from "../lib/listed-tickers";
+import { hiddenAuthorIds } from "../lib/visibility";
 
 export const searchRouter = Router();
 
@@ -22,6 +23,7 @@ searchRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<
     }
 
     await ensureListedTickers();
+    const hidden = await hiddenAuthorIds(req.userId!);
 
     const symbol = q.replace(/^\$/, "").toUpperCase();
     const contains = { contains: q, mode: "insensitive" } as const;
@@ -36,6 +38,7 @@ searchRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<
       }),
       prisma.user.findMany({
         where: {
+          ...(hidden.length ? { id: { notIn: hidden } } : {}),
           AND: terms.map((term) => ({
             OR: [
               { firstName: { contains: term, mode: "insensitive" as const } },
@@ -49,7 +52,11 @@ searchRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<
         take: RESULT_LIMIT,
         select: AUTHOR_SELECT,
       }),
-      listPosts(req.userId!, { body: contains }, { limit: RESULT_LIMIT }),
+      listPosts(
+        req.userId!,
+        { body: contains, ...(hidden.length ? { authorId: { notIn: hidden } } : {}) },
+        { limit: RESULT_LIMIT },
+      ),
     ]);
 
     const tickers = tickerRows

@@ -9,6 +9,21 @@ export function pageSize(raw: unknown): number {
   return Math.min(Math.max(Number(raw) || DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
 }
 
+export function pollInclude(userId: string) {
+  return {
+    options: {
+      orderBy: { position: "asc" as const },
+      include: { _count: { select: { votes: true } } },
+    },
+    votes: { where: { userId }, select: { optionId: true }, take: 1 },
+  } satisfies Prisma.PollInclude;
+}
+
+const quoteInclude = {
+  author: { select: AUTHOR_SELECT },
+  tickers: { select: { symbol: true } },
+} satisfies Prisma.PostInclude;
+
 export function postInclude(userId: string) {
   const mine = { where: { userId }, select: { userId: true } };
   return {
@@ -18,11 +33,38 @@ export function postInclude(userId: string) {
     reposts: mine,
     bookmarks: mine,
     parent: { select: { id: true, author: { select: AUTHOR_SELECT } } },
+    quote: { include: quoteInclude },
+    poll: { include: pollInclude(userId) },
     _count: { select: { likes: true, reposts: true, replies: true } },
   } satisfies Prisma.PostInclude;
 }
 
 export type PostWithRelations = Prisma.PostGetPayload<{ include: ReturnType<typeof postInclude> }>;
+
+function toQuoteDto(post: NonNullable<PostWithRelations["quote"]>) {
+  return {
+    id: post.id,
+    author: toAuthorDto(post.author),
+    body: post.body,
+    stance: post.stance,
+    tickers: post.tickers.map((t) => t.symbol),
+    createdAt: post.createdAt.toISOString(),
+  };
+}
+
+export function toPollDto(poll: NonNullable<PostWithRelations["poll"]>) {
+  const options = poll.options.map((option) => ({
+    id: option.id,
+    label: option.label,
+    stance: option.stance,
+    votes: option._count.votes,
+  }));
+  return {
+    totalVotes: options.reduce((sum, option) => sum + option.votes, 0),
+    myOptionId: poll.votes[0]?.optionId ?? null,
+    options,
+  };
+}
 
 export function toPostDto(post: PostWithRelations) {
   return {
@@ -39,6 +81,8 @@ export function toPostDto(post: PostWithRelations) {
     bookmarkedByMe: post.bookmarks.length > 0,
     parentId: post.parentId,
     replyTo: post.parent ? toAuthorDto(post.parent.author) : null,
+    quote: post.quote ? toQuoteDto(post.quote) : null,
+    poll: post.poll ? toPollDto(post.poll) : null,
     createdAt: post.createdAt.toISOString(),
   };
 }

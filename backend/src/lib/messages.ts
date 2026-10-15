@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { AUTHOR_SELECT, toAuthorDto } from "./author";
+import { InteractionError, assertCanInteract } from "./visibility";
 
 export const MESSAGE_LIMIT = 1000;
 export const MESSAGE_PAGE = 40;
@@ -55,6 +56,12 @@ export async function unreadMessageCount(userId: string) {
 
 export async function openConversation(me: string, other: string) {
   if (me === other) throw new MessageError("You can't message yourself", 400);
+  try {
+    await assertCanInteract(me, other);
+  } catch (error) {
+    if (error instanceof InteractionError) throw new MessageError(error.message, error.status);
+    throw error;
+  }
   const recipient = await prisma.user.findUnique({ where: { id: other }, select: { id: true } });
   if (!recipient) throw new MessageError("User not found", 404);
 
@@ -115,8 +122,14 @@ export async function requireMembership(conversationId: string, userId: string) 
     },
   });
   if (!conversation) throw new MessageError("Conversation not found", 404);
-  const peer = conversation.userAId === userId ? conversation.userB : conversation.userA;
-  return { conversation, peer: toAuthorDto(peer) };
+  const peerUser = conversation.userAId === userId ? conversation.userB : conversation.userA;
+  try {
+    await assertCanInteract(userId, peerUser.id);
+  } catch (error) {
+    if (error instanceof InteractionError) throw new MessageError(error.message, error.status);
+    throw error;
+  }
+  return { conversation, peer: toAuthorDto(peerUser) };
 }
 
 export async function markConversationRead(conversationId: string, userId: string) {

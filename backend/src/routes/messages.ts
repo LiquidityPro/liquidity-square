@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { AUTHOR_SELECT, toAuthorDto } from "../lib/author";
 import { authenticateJwt, AuthenticatedRequest } from "../middleware/auth";
+import { blockedAuthorIds } from "../lib/visibility";
 import {
   INBOX_LIMIT,
   MESSAGE_PAGE,
@@ -32,6 +33,7 @@ function fail(res: Response, error: unknown, label: string) {
 messagesRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.userId!;
+    const blocked = new Set(await blockedAuthorIds(userId));
     const rows = await prisma.conversation.findMany({
       where: { OR: [{ userAId: userId }, { userBId: userId }] },
       orderBy: { updatedAt: "desc" },
@@ -48,6 +50,7 @@ messagesRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promis
       const last = row.messages[0];
       if (!last) return [];
       const peer = row.userAId === userId ? row.userB : row.userA;
+      if (blocked.has(peer.id)) return [];
       const readAt = row.reads[0]?.lastReadAt;
       const unread = last.senderId !== userId && (!readAt || readAt < last.createdAt);
       return [

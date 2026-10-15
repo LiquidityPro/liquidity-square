@@ -1,5 +1,12 @@
+import https from "node:https";
 import * as webpush from "web-push";
 import { prisma } from "./prisma";
+
+const pushAgent = new https.Agent({
+  keepAlive: true,
+  family: 4,
+  timeout: 10_000,
+});
 
 type PushPayload = {
   id: string;
@@ -13,6 +20,9 @@ const COPY = {
   follow: "followed you",
   reply: "replied to your post",
   repost: "reposted your post",
+  quote: "quoted your post",
+  alert: "Price alert",
+  disclosure: "New NGX filing",
 } as const;
 
 let configured = false;
@@ -32,6 +42,24 @@ export function vapidPublicKey(): string | null {
   return process.env.VAPID_PUBLIC_KEY || null;
 }
 
+function endpointHost(endpoint: string) {
+  try {
+    return new URL(endpoint).host;
+  } catch {
+    return "push service";
+  }
+}
+
+function pushFailure(error: unknown) {
+  const list =
+    error && typeof error === "object" && "errors" in error && Array.isArray(error.errors) ? error.errors : [error];
+  const codes = list.flatMap((item) =>
+    item && typeof item === "object" && "code" in item && typeof item.code === "string" ? [item.code] : [],
+  );
+  if (codes.length > 0) return [...new Set(codes)].join(", ");
+  return error instanceof Error ? error.message : "request failed";
+}
+
 export async function deliverPush(notificationId: string): Promise<void> {
   if (!vapidReady()) return;
 
@@ -42,19 +70,42 @@ export async function deliverPush(notificationId: string): Promise<void> {
         id: true,
         type: true,
         recipientId: true,
+        symbol: true,
+        summary: true,
+        href: true,
         actor: { select: { id: true, firstName: true, lastName: true, email: true } },
         post: { select: { id: true, body: true } },
       },
     });
     if (!notification) return;
 
-    const name = `${notification.actor.firstName} ${notification.actor.lastName}`.trim() || notification.actor.email;
-    const payload: PushPayload = {
-      id: notification.id,
-      title: `${name} ${COPY[notification.type]}`,
-      body: notification.post?.body.slice(0, 140) ?? "Open The Square to see it.",
-      url: notification.post ? `/square/post/${notification.post.id}` : `/square/u/${notification.actor.id}`,
-    };
+    const payload: PushPayload =
+      notification.type === "disclosure"
+        ? {
+            id: notification.id,
+            title: notification.summary || COPY.disclosure,
+            body: "A new filing is on the NGX disclosures list.",
+            url: notification.href || (notification.symbol ? `/square/${notification.symbol}` : "/square/notifications"),
+          }
+        : notification.type === "alert"
+        ? {
+            id: notification.id,
+            title: notification.summary || COPY.alert,
+            body: notification.symbol ? `Open $${notification.symbol} on The Square.` : "Open The Square to see it.",
+            url: notification.symbol ? `/square/${notification.symbol}` : "/square/notifications",
+          }
+        : {
+            id: notification.id,
+            title: notification.actor
+              ? `${`${notification.actor.firstName} ${notification.actor.lastName}`.trim() || notification.actor.email} ${COPY[notification.type]}`
+              : COPY[notification.type],
+            body: notification.post?.body.slice(0, 140) ?? "Open The Square to see it.",
+            url: notification.post
+              ? `/square/post/${notification.post.id}`
+              : notification.actor
+                ? `/square/u/${notification.actor.id}`
+                : "/square/notifications",
+          };
 
     const subscriptions = await prisma.pushSubscription.findMany({
       where: { userId: notification.recipientId },
@@ -70,6 +121,7 @@ export async function deliverPush(notificationId: string): Promise<void> {
               keys: { p256dh: subscription.p256dh, auth: subscription.auth },
             },
             JSON.stringify(payload),
+            { agent: pushAgent, timeout: 10_000 },
           );
         } catch (error) {
           const status = typeof error === "object" && error && "statusCode" in error ? Number(error.statusCode) : 0;
@@ -77,7 +129,7 @@ export async function deliverPush(notificationId: string): Promise<void> {
             await prisma.pushSubscription.delete({ where: { id: subscription.id } }).catch(() => undefined);
             return;
           }
-          console.error("Push delivery error:", error);
+          console.error(`Push delivery failed (${endpointHost(subscription.endpoint)}): ${pushFailure(error)}`);
         }
       }),
     );

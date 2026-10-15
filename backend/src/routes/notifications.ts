@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { prisma } from "../lib/prisma";
-import { AUTHOR_SELECT, toAuthorDto } from "../lib/author";
 import { pageSize } from "../lib/post";
+import { notificationSelect, toNotificationDto } from "../lib/notification-dto";
 import { authenticateJwt, AuthenticatedRequest } from "../middleware/auth";
 
 export const notificationsRouter = Router();
@@ -19,26 +19,12 @@ notificationsRouter.get("/", async (req: AuthenticatedRequest, res: Response): P
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: limit + 1,
       ...(typeof cursor === "string" && cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      select: {
-        id: true,
-        type: true,
-        readAt: true,
-        createdAt: true,
-        actor: { select: AUTHOR_SELECT },
-        post: { select: { id: true, body: true } },
-      },
+      select: notificationSelect,
     });
 
     const page = notifications.slice(0, limit);
     res.status(200).json({
-      notifications: page.map((n) => ({
-        id: n.id,
-        type: n.type,
-        read: n.readAt !== null,
-        createdAt: n.createdAt.toISOString(),
-        actor: toAuthorDto(n.actor),
-        post: n.post,
-      })),
+      notifications: page.map(toNotificationDto),
       nextCursor: notifications.length > limit ? page[page.length - 1].id : null,
     });
   } catch (error) {

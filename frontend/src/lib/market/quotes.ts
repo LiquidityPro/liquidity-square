@@ -48,6 +48,21 @@ export function formatMove(amount: number) {
   return `${sign}₦${formatNaira(Math.abs(amount))}`;
 }
 
+export function formatCount(value: number) {
+  return value.toLocaleString("en-NG", { maximumFractionDigits: 0 });
+}
+
+export function formatTurnover(value: number) {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000_000) return `₦${(value / 1_000_000_000).toFixed(2)}bn`;
+  if (abs >= 1_000_000) return `₦${(value / 1_000_000).toFixed(2)}m`;
+  return `₦${formatNaira(value)}`;
+}
+
+export function sectorPath(sector: string) {
+  return `/square/sector/${encodeURIComponent(sector)}`;
+}
+
 export function formatSession(sessionDate: string) {
   const [year, month, day] = sessionDate.split("-").map(Number);
   if (!year || !month || !day) return sessionDate;

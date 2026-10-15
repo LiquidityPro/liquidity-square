@@ -6,6 +6,7 @@ import { pageSize, postInclude, toPostDto } from "../lib/post";
 import { notify, unnotify } from "../lib/notify";
 import { authenticateJwt, AuthenticatedRequest } from "../middleware/auth";
 import { FINANCE_TITLE_GROUPS, FINANCE_TITLES, TITLE_LOCK_DAYS, titleLockedUntil } from "../lib/finance-titles";
+import { InteractionError, assertCanInteract, hiddenAuthorIds, relationship } from "../lib/visibility";
 
 export const usersRouter = Router();
 
@@ -64,6 +65,11 @@ function toProfile(
   user: ProfileRow,
   followedByMe: boolean,
   activity: { posts: number; replies: number; reposts: number; likes: number },
+  links: { mutedByMe: boolean; blockedByMe: boolean; blockedMe: boolean } = {
+    mutedByMe: false,
+    blockedByMe: false,
+    blockedMe: false,
+  },
 ) {
   const locked = titleLockedUntil(user.titleChangedAt);
   return {
@@ -76,6 +82,9 @@ function toProfile(
     followers: user._count.followers,
     following: user._count.following,
     followedByMe,
+    mutedByMe: links.mutedByMe,
+    blockedByMe: links.blockedByMe,
+    blockedMe: links.blockedMe,
     bio: user.bio,
     location: user.location,
     website: user.website,
@@ -163,8 +172,9 @@ usersRouter.get("/me/bookmarks", async (req: AuthenticatedRequest, res: Response
     const limit = pageSize(req.query.limit);
     const { cursor } = req.query;
 
+    const hidden = await hiddenAuthorIds(userId);
     const bookmarks = await prisma.bookmark.findMany({
-      where: { userId },
+      where: { userId, ...(hidden.length ? { post: { authorId: { notIn: hidden } } } : {}) },
       orderBy: [{ createdAt: "desc" }, { postId: "desc" }],
       take: limit + 1,
       ...(typeof cursor === "string" && cursor
@@ -189,9 +199,10 @@ usersRouter.get("/suggested", async (req: AuthenticatedRequest, res: Response): 
   try {
     const userId = req.userId!;
     const limit = Math.min(Math.max(Number(req.query.limit) || SUGGESTED_LIMIT, 1), MAX_SUGGESTED_LIMIT);
+    const hidden = await hiddenAuthorIds(userId);
 
     const users = await prisma.user.findMany({
-      where: { id: { not: userId }, followers: { none: { followerId: userId } } },
+      where: { id: { notIn: [userId, ...hidden] }, followers: { none: { followerId: userId } } },
       orderBy: [{ followers: { _count: "desc" } }, { createdAt: "desc" }],
       take: limit,
       select: AUTHOR_SELECT,
@@ -315,12 +326,13 @@ usersRouter.get("/:id", async (req: AuthenticatedRequest<{ id: string }>, res: R
       return;
     }
     const id = user.id;
-    const [followedByMe, activity] = await Promise.all([
+    const [followedByMe, activity, links] = await Promise.all([
       prisma.follow.count({ where: { followerId: req.userId!, followingId: id } }),
       activityCounts(id),
+      relationship(req.userId!, id),
     ]);
 
-    res.status(200).json({ profile: toProfile(user, followedByMe > 0, activity) });
+    res.status(200).json({ profile: toProfile(user, followedByMe > 0, activity, links) });
   } catch (error) {
     console.error("Get profile error:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -384,6 +396,16 @@ usersRouter.post("/:id/follow", async (req: AuthenticatedRequest<{ id: string }>
     if (target === 0) {
       res.status(404).json({ error: "User not found" });
       return;
+    }
+
+    try {
+      await assertCanInteract(followerId, followingId);
+    } catch (error) {
+      if (error instanceof InteractionError) {
+        res.status(error.status).json({ error: error.message });
+        return;
+      }
+      throw error;
     }
 
     const { count } = await prisma.follow.createMany({

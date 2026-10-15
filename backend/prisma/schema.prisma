@@ -14,6 +14,19 @@ enum Stance {
   bear
 }
 
+enum AlertDirection {
+  up
+  down
+  either
+}
+
+enum ReportReason {
+  spam
+  harassment
+  misinformation
+  other
+}
+
 model User {
   id             String    @id @default(cuid())
   email          String    @unique
@@ -48,6 +61,18 @@ model User {
   conversationReads  ConversationRead[]
   directMessages     DirectMessage[]
 
+  watches      Watch[]
+  priceAlerts  PriceAlert[]
+  pollVotes    PollVote[]
+  mutes        Mute[]        @relation("Mutes")
+  mutedBy      Mute[]        @relation("MutedBy")
+  blocks       Block[]       @relation("Blocks")
+  blockedBy    Block[]       @relation("BlockedBy")
+  reports      Report[]
+  disclosureReceipts DisclosureReceipt[]
+
+  disclosureCursor DateTime?
+
   @@map("users")
 }
 
@@ -57,8 +82,11 @@ model Ticker {
   sector    String?
   createdAt DateTime @default(now())
 
-  posts Post[]
+  posts   Post[]
+  watches Watch[]
+  alerts  PriceAlert[]
 
+  @@index([sector])
   @@map("tickers")
 }
 
@@ -68,21 +96,27 @@ model Post {
   stance    Stance?
   authorId  String
   parentId  String?
+  quoteId   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   author        User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
   parent        Post?          @relation("Replies", fields: [parentId], references: [id], onDelete: Cascade)
   replies       Post[]         @relation("Replies")
+  quote         Post?          @relation("Quotes", fields: [quoteId], references: [id], onDelete: SetNull)
+  quotes        Post[]         @relation("Quotes")
   tickers       Ticker[]
   likes         Like[]
   bookmarks     Bookmark[]
   reposts       Repost[]
   notifications Notification[]
+  poll          Poll?
+  reports       Report[]
 
   @@index([createdAt])
   @@index([authorId, createdAt])
   @@index([parentId, createdAt])
+  @@index([quoteId])
   @@map("posts")
 }
 
@@ -117,19 +151,25 @@ enum NotificationType {
   follow
   reply
   repost
+  quote
+  alert
+  disclosure
 }
 
 model Notification {
   id          String           @id @default(cuid())
   type        NotificationType
   recipientId String
-  actorId     String
+  actorId     String?
   postId      String?
+  symbol      String?
+  summary     String?          @db.VarChar(180)
+  href        String?          @db.VarChar(500)
   readAt      DateTime?
   createdAt   DateTime         @default(now())
 
   recipient User  @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
-  actor     User  @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+  actor     User? @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
   post      Post? @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([recipientId, createdAt])
@@ -219,4 +259,129 @@ model Follow {
   @@id([followerId, followingId])
   @@index([followingId])
   @@map("follows")
+}
+
+model Watch {
+  userId    String
+  symbol    String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ticker Ticker @relation(fields: [symbol], references: [symbol], onDelete: Cascade)
+
+  @@id([userId, symbol])
+  @@index([userId, createdAt])
+  @@map("watches")
+}
+
+model PriceAlert {
+  userId           String
+  symbol           String
+  thresholdPct     Float
+  direction        AlertDirection @default(either)
+  lastFiredSession String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ticker Ticker @relation(fields: [symbol], references: [symbol], onDelete: Cascade)
+
+  @@id([userId, symbol])
+  @@index([symbol])
+  @@map("price_alerts")
+}
+
+model Poll {
+  id     String @id @default(cuid())
+  postId String @unique
+
+  post    Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  options PollOption[]
+  votes   PollVote[]
+
+  @@map("polls")
+}
+
+model PollOption {
+  id       String  @id @default(cuid())
+  pollId   String
+  label    String  @db.VarChar(40)
+  stance   Stance?
+  position Int
+
+  poll  Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes PollVote[]
+
+  @@index([pollId, position])
+  @@map("poll_options")
+}
+
+model PollVote {
+  userId    String
+  pollId    String
+  optionId  String
+  createdAt DateTime @default(now())
+
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  poll   Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, pollId])
+  @@index([optionId])
+  @@index([createdAt])
+  @@map("poll_votes")
+}
+
+model Mute {
+  userId    String
+  mutedId   String
+  createdAt DateTime @default(now())
+
+  user  User @relation("Mutes", fields: [userId], references: [id], onDelete: Cascade)
+  muted User @relation("MutedBy", fields: [mutedId], references: [id], onDelete: Cascade)
+
+  @@id([userId, mutedId])
+  @@map("mutes")
+}
+
+model Block {
+  userId    String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  user    User @relation("Blocks", fields: [userId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlockedBy", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([userId, blockedId])
+  @@index([blockedId])
+  @@map("blocks")
+}
+
+model Report {
+  id         String       @id @default(cuid())
+  reporterId String
+  postId     String?
+  userId     String?
+  reason     ReportReason
+  note       String?      @db.VarChar(280)
+  createdAt  DateTime     @default(now())
+
+  reporter User  @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  post     Post? @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([reporterId, createdAt])
+  @@index([postId])
+  @@map("reports")
+}
+
+model DisclosureReceipt {
+  userId    String
+  filingKey String   @db.VarChar(64)
+  filedAt   DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, filingKey])
+  @@index([userId, filedAt])
+  @@map("disclosure_receipts")
 }

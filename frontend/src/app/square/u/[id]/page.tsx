@@ -13,7 +13,9 @@ import {
 import { Avatar, EmptyState, FollowButton, PageHeader, PostFeed, TabBar } from "@/components/square/parts";
 import { Verified } from "@/components/square/avatar";
 import { useSquare } from "@/components/square/context";
-import { fetchPosts, fetchProfile } from "@/components/square/api";
+import { fetchPosts, fetchProfile, setBlocked, setMuted } from "@/components/square/api";
+import { ReportDialog } from "@/components/square/safety";
+import { toast } from "sonner";
 import { compact, type Post, type Profile } from "@/components/square/data";
 import { EditProfileDialog } from "@/components/square/edit-profile";
 import { bannerClass, websiteHref, websiteLabel } from "@/components/square/profile-meta";
@@ -166,7 +168,7 @@ export default function ProfilePage() {
                   </button>
                 </>
               ) : (
-                profile && (
+                profile && !profile.blockedMe && !profile.blockedByMe && (
                   <>
                     <Link
                       href={`/square/messages/new/${profile.id}`}
@@ -189,6 +191,7 @@ export default function ProfilePage() {
                 {profile.verified && <Verified role={profile.role} />}
               </h2>
               <p className="font-mono text-sm text-muted-foreground">@{profile.handle}</p>
+              {!isMe && <ProfileSafety profile={profile} onChange={setProfile} />}
               {profile.title ? (
                 <p className="mt-1 text-sm text-muted-foreground">{profile.title}</p>
               ) : (
@@ -260,7 +263,12 @@ export default function ProfilePage() {
         <TabBar tabs={tabs} value={tab} onChange={setTab} label="Profile sections" />
       </section>
 
-      {tab === "media" ? (
+      {profile && (profile.blockedMe || profile.blockedByMe) ? (
+        <EmptyState
+          title={profile.blockedByMe ? "You blocked this account" : "You can't see this account"}
+          body={profile.blockedByMe ? "Unblock them to see their posts again." : "They've blocked you."}
+        />
+      ) : tab === "media" ? (
         <EmptyState
           title={isMe ? "You haven't posted media" : "No photos or videos"}
           body={isMe ? "Photos and videos you share will show up in this tab." : "When they post photos or videos, they'll show up here."}
@@ -299,5 +307,70 @@ export default function ProfilePage() {
         <EditProfileDialog profile={profile} open={editing} onOpenChange={setEditing} onSaved={setProfile} />
       )}
     </>
+  );
+}
+
+function ProfileSafety({ profile, onChange }: { profile: Profile; onChange: (profile: Profile) => void }) {
+  const { token, hideAuthor } = useSquare();
+  const [reporting, setReporting] = useState(false);
+  const [pending, setPending] = useState(false);
+
+  async function run(action: "mute" | "block") {
+    if (!token || pending) return;
+    setPending(true);
+    const on = action === "mute" ? !profile.mutedByMe : !profile.blockedByMe;
+    try {
+      if (action === "mute") await setMuted(token, profile.id, on);
+      else await setBlocked(token, profile.id, on);
+      onChange({
+        ...profile,
+        mutedByMe: action === "mute" ? on : profile.mutedByMe,
+        blockedByMe: action === "block" ? on : false,
+        followedByMe: action === "block" && on ? false : profile.followedByMe,
+      });
+      if (on) hideAuthor(profile.id);
+      toast.success(
+        action === "mute"
+          ? on
+            ? `Muted @${profile.handle}`
+            : `Unmuted @${profile.handle}`
+          : on
+            ? `Blocked @${profile.handle}`
+            : `Unblocked @${profile.handle}`,
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't update this account");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {!profile.blockedMe && !profile.blockedByMe && (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => void run("mute")}
+          className="rounded-full border px-3 py-1 text-sm font-semibold"
+        >
+          {profile.mutedByMe ? "Unmute" : "Mute"}
+        </button>
+      )}
+      {!profile.blockedMe && (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => void run("block")}
+          className="rounded-full border px-3 py-1 text-sm font-semibold text-bear"
+        >
+          {profile.blockedByMe ? "Unblock" : "Block"}
+        </button>
+      )}
+      <button type="button" onClick={() => setReporting(true)} className="rounded-full border px-3 py-1 text-sm font-semibold">
+        Report
+      </button>
+      <ReportDialog open={reporting} onOpenChange={setReporting} userId={profile.id} />
+    </div>
   );
 }
