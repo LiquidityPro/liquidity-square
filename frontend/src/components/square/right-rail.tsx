@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LuSearch as Search } from "react-icons/lu";
 import { UserRow } from "./user-row";
-import { compact, getTickerData, type Author, type TickerSummary } from "./data";
+import { compact, type Author, type TickerSummary } from "./data";
 import { fetchSuggested, fetchTickers } from "./api";
 import { useSquare } from "./context";
 import { useMarketTape } from "./use-market-tape";
-import { formatChange, formatNaira, formatSession, topMovers } from "@/lib/market/quotes";
+import { formatChange, formatMove, formatNaira, formatSector, formatSession, moveNaira, topMovers } from "@/lib/market/quotes";
 import type { TapeQuote } from "@/lib/market/tape";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +22,7 @@ export function SentimentBar({ bull, label }: { bull: number; label: string }) {
       <div
         className="flex h-2 overflow-hidden rounded-full"
         role="img"
-        aria-label={`${label}: ${bull}% bullish, ${100 - bull}% bearish (illustrative)`}
+        aria-label={`${label}: ${bull}% bullish, ${100 - bull}% bearish`}
       >
         <div className="bg-primary transition-[width] duration-700" style={{ width: `${bull}%` }} />
         <div className="bg-bear" style={{ width: `${100 - bull}%` }} />
@@ -49,7 +49,11 @@ export function RightRail({
   const [suggested, setSuggested] = useState<Author[]>([]);
   const [railReady, setRailReady] = useState(false);
   const { snapshot, failed: tapeFailed } = useMarketTape();
-  const tickerData = activeTicker ? getTickerData(activeTicker) : null;
+  const symbol = activeTicker?.replace(/^\$/, "").toUpperCase() ?? "";
+  const quote = useMemo(
+    () => (symbol ? snapshot?.quotes.find((row) => row.symbol === symbol) ?? null : null),
+    [snapshot, symbol],
+  );
 
   useEffect(() => {
     if (!ready) return;
@@ -129,44 +133,15 @@ export function RightRail({
       </form>
 
       <div className="scrollbar-hidden flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
-        {activeTicker && tickerData ? (
-          <section className="rounded-2xl border bg-card p-4 animate-in fade-in slide-in-from-right-2">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold">About ${activeTicker}</h2>
-              <span className="label-mono rounded border px-1.5 py-0.5 !text-[0.6rem] text-muted-foreground">
-                Illustrative
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground">Market Cap</p>
-                <p className="font-mono font-medium">{tickerData.marketCap}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">P/E Ratio</p>
-                <p className="font-mono font-medium">{tickerData.peRatio}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Volume</p>
-                <p className="font-mono font-medium">{tickerData.volume}</p>
-              </div>
-            </div>
-
-            <h3 className="mb-3 mt-6 text-sm font-bold text-muted-foreground">Recent Headlines</h3>
-            <ul className="space-y-4">
-              {tickerData.news.map((newsItem, idx) => (
-                <li key={idx} className="group cursor-pointer">
-                  <p className="text-sm font-medium leading-snug group-hover:underline">{newsItem.headline}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {newsItem.source} · {newsItem.time}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </section>
+        {symbol ? (
+          <TickerQuoteCard
+            symbol={symbol}
+            quote={quote}
+            sessionDate={snapshot?.sessionDate}
+            pending={!snapshot && !tapeFailed}
+            failed={tapeFailed && !snapshot}
+          />
         ) : (
-          <>
             <section className="rounded-2xl border bg-card">
               <div className="flex items-center justify-between px-4 pb-1 pt-3">
                 <h2 className="text-xl font-bold">Trending on NGX</h2>
@@ -200,10 +175,9 @@ export function RightRail({
                 </ol>
               )}
             </section>
-
-            <TopMoversCard quotes={snapshot?.quotes} sessionDate={snapshot?.sessionDate} failed={tapeFailed} />
-          </>
         )}
+
+        <TopMoversCard quotes={snapshot?.quotes} sessionDate={snapshot?.sessionDate} failed={tapeFailed} />
 
         <section className="rounded-2xl border bg-card pb-2">
           <h2 className="px-4 pb-1 pt-3 text-xl font-bold">Who to follow</h2>
@@ -239,6 +213,59 @@ export function RightRail({
         </nav>
       </div>
     </aside>
+  );
+}
+
+function TickerQuoteCard({
+  symbol,
+  quote,
+  sessionDate,
+  pending,
+  failed,
+}: {
+  symbol: string;
+  quote: TapeQuote | null;
+  sessionDate?: string;
+  pending: boolean;
+  failed: boolean;
+}) {
+  const up = (quote?.changePct ?? 0) > 0;
+  const down = (quote?.changePct ?? 0) < 0;
+  const tone = up ? "text-primary" : down ? "text-bear" : "text-muted-foreground";
+  const sessionLabel = sessionDate ? formatSession(sessionDate) : failed ? "Unavailable" : "Loading";
+
+  return (
+    <section className="rounded-2xl border bg-card p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-mono text-lg font-bold">${symbol}</h2>
+        <span
+          className="label-mono rounded border px-1.5 py-0.5 !text-[0.6rem] text-muted-foreground"
+          title={sessionDate ? `NGX session ${sessionDate}` : "NGX session"}
+        >
+          {sessionLabel}
+        </span>
+      </div>
+      {quote ? (
+        <>
+          <p className="mt-3 font-mono text-3xl font-semibold tracking-tight">₦{formatNaira(quote.price)}</p>
+          <p className={cn("mt-1 font-mono text-sm font-semibold", tone)}>
+            {quote.changePct === 0 ? (
+              formatChange(quote.changePct)
+            ) : (
+              <>
+                {formatMove(moveNaira(quote.price, quote.changePct))}
+                <span className="ml-2">{formatChange(quote.changePct)}</span>
+              </>
+            )}
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">{formatSector(quote.sector || "NGX")}</p>
+        </>
+      ) : (
+        <p className="mt-3 text-sm text-muted-foreground">
+          {pending ? "Loading the session…" : failed ? "Session unavailable." : `No NGX print for $${symbol} this session.`}
+        </p>
+      )}
+    </section>
   );
 }
 

@@ -1,6 +1,5 @@
 // Placeholder content for The Square preview.
 // Everything here is illustrative — replace with real data once the backend exists.
-// Note: no share prices are shown anywhere, matching the landing page's "tickers only" rule.
 
 export type Stance = "bull" | "bear" | null;
 
@@ -212,19 +211,6 @@ export const POSTS: Post[] = [
   }
 ];
 
-export type Trend = { ticker: string; sector: string; posts: string; bull: number };
-
-// `bull` is an illustrative bullish share (0–100).
-export const TRENDING: Trend[] = [
-  { ticker: "DANGCEM", sector: "Industrials", posts: "2.4K posts", bull: 64 },
-  { ticker: "GTCO", sector: "Banking", posts: "1.8K posts", bull: 71 },
-  { ticker: "MTNN", sector: "Telecoms", posts: "1.2K posts", bull: 45 },
-  { ticker: "OANDO", sector: "Oil & gas", posts: "954 posts", bull: 32 },
-  { ticker: "BUAFOODS", sector: "Consumer goods", posts: "812 posts", bull: 59 },
-  { ticker: "TRANSCORP", sector: "Conglomerates", posts: "640 posts", bull: 85 },
-  { ticker: "ZENITHBANK", sector: "Banking", posts: "590 posts", bull: 68 },
-];
-
 export const SUGGESTED: Author[] = [A.fund, A.macro, A.analyst1, A.institutional, A.analyst2];
 
 export const TICKER_RE = /(\$[A-Z]{2,12})/g;
@@ -236,125 +222,5 @@ export function extractTickers(text: string): string[] {
 export function compact(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K`;
   return String(n);
-}
-
-// Mock company fundamentals for the RightRail
-export type CompanyFundamentals = {
-  price: number;
-  change: number; // Percentage
-  marketCap: string;
-  peRatio: number;
-  volume: string;
-  news: { headline: string; source: string; time: string }[];
-};
-
-export const TICKER_FUNDS: Record<string, CompanyFundamentals> = {
-  DANGCEM: {
-    price: 645.50,
-    change: 1.2,
-    marketCap: "₦11.0T",
-    peRatio: 18.4,
-    volume: "1.2M",
-    news: [
-      { headline: "Dangote Cement Q3 Revenue surges on Pan-African exports", source: "BusinessDay", time: "2h ago" },
-      { headline: "Analysts maintain BUY rating for DANGCEM", source: "Nairametrics", time: "5h ago" }
-    ]
-  },
-  GTCO: {
-    price: 45.20,
-    change: -0.5,
-    marketCap: "₦1.3T",
-    peRatio: 3.1,
-    volume: "15.4M",
-    news: [
-      { headline: "GTCO completes transition to holding company structure", source: "Proshare", time: "1d ago" },
-      { headline: "FX revaluation gains boost banking sector Q2 profit", source: "Nairametrics", time: "1d ago" }
-    ]
-  },
-  MTNN: {
-    price: 210.00,
-    change: -2.4,
-    marketCap: "₦4.2T",
-    peRatio: 12.8,
-    volume: "5.1M",
-    news: [
-      { headline: "MTN Nigeria faces margin pressure from Naira devaluation", source: "BusinessDay", time: "3h ago" },
-      { headline: "Telecom operators push for tariff hike", source: "Punch", time: "6h ago" }
-    ]
-  },
-  OANDO: {
-    price: 58.00,
-    change: 9.8,
-    marketCap: "₦720.0B",
-    peRatio: 8.5,
-    volume: "8.3M",
-    news: [
-      { headline: "Oando deepens upstream footprint with asset acquisition", source: "BusinessDay", time: "4h ago" },
-      { headline: "Energy sector rally continues on NGX", source: "Proshare", time: "6h ago" }
-    ]
-  },
-  BUAFOODS: {
-    price: 375.00,
-    change: 2.1,
-    marketCap: "₦6.7T",
-    peRatio: 22.0,
-    volume: "950K",
-    news: [
-      { headline: "BUA Foods expands refinery capacity to meet local demand", source: "Punch", time: "5h ago" },
-      { headline: "Consumer goods sector shows resilience amidst inflation", source: "Nairametrics", time: "8h ago" }
-    ]
-  },
-  TRANSCORP: {
-    price: 12.50,
-    change: 4.6,
-    marketCap: "₦508.0B",
-    peRatio: 9.2,
-    volume: "22.1M",
-    news: [
-      { headline: "Transcorp Power output jumps on plant efficiency gains", source: "Vanguard", time: "2h ago" },
-      { headline: "Conglomerate records stellar earnings growth", source: "BusinessDay", time: "1d ago" }
-    ]
-  },
-  ZENITHBANK: {
-    price: 38.80,
-    change: 1.5,
-    marketCap: "₦1.2T",
-    peRatio: 2.8,
-    volume: "18.6M",
-    news: [
-      { headline: "Zenith Bank leads dividend distribution table", source: "Nairametrics", time: "3h ago" },
-      { headline: "Tier-1 banking capitalisation drive gains momentum", source: "ThisDay", time: "7h ago" }
-    ]
-  }
-};
-
-function seedFromString(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
-
-export function getTickerData(ticker: string): CompanyFundamentals {
-  if (TICKER_FUNDS[ticker]) {
-    return TICKER_FUNDS[ticker];
-  }
-  const seed = seedFromString(ticker);
-  const price = (seed % 450) + 15;
-  const change = ((seed % 140) - 70) / 10;
-  const pe = ((seed % 180) + 20) / 10;
-  return {
-    price,
-    change,
-    marketCap: `₦${((seed % 45) / 10 + 0.5).toFixed(1)}T`,
-    peRatio: pe,
-    volume: `${((seed % 90) / 10 + 1).toFixed(1)}M`,
-    news: [
-      { headline: `Market buzz surrounds ${ticker} ahead of earnings`, source: "Liquidity News", time: "1h ago" },
-      { headline: `${ticker} volume spikes as investors position`, source: "Proshare", time: "4h ago" }
-    ]
-  };
 }
 

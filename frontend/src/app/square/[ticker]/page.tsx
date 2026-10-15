@@ -1,19 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { Composer, EmptyState, PageHeader, PostFeed, SentimentBar } from "@/components/square/parts";
 import { useSquare } from "@/components/square/context";
 import { fetchPosts, fetchTicker, type TickerDetail } from "@/components/square/api";
-import { TRENDING, getTickerData, type Post } from "@/components/square/data";
+import type { Post } from "@/components/square/data";
 import { usePostList } from "@/components/square/use-post-list";
+import { useMarketTape } from "@/components/square/use-market-tape";
+import { formatChange, formatMove, formatNaira, formatSector, formatSession, moveNaira } from "@/lib/market/quotes";
 import { cn } from "@/lib/utils";
 
 export default function TickerRoom() {
   const params = useParams();
   const ticker = ((params?.ticker as string) ?? "").replace(/^\$/, "").toUpperCase();
   const { token, ready, publish } = useSquare();
-  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const { snapshot, failed: tapeFailed } = useMarketTape();
   const [detail, setDetail] = useState<TickerDetail | null>(null);
   const [followingTicker, setFollowingTicker] = useState(false);
 
@@ -25,68 +27,64 @@ export default function TickerRoom() {
   const list = usePostList({ key: `ticker:${ticker}`, fetchPage, includeRecent: hasTicker });
 
   useEffect(() => {
+    setDetail(null);
+    setFollowingTicker(false);
+  }, [ticker]);
+
+  useEffect(() => {
     if (!ready || !token || !ticker) return;
     let cancelled = false;
     fetchTicker(token, ticker)
-      .then((t) => !cancelled && setDetail(t))
-      .catch(() => !cancelled && setDetail(null));
+      .then((next) => {
+        if (!cancelled) setDetail(next);
+      })
+      .catch(() => {
+        if (!cancelled) setDetail(null);
+      });
     return () => {
       cancelled = true;
     };
   }, [ticker, token, ready]);
 
-  const trend = TRENDING.find((t) => t.ticker === ticker);
-  const sentimentStats = useMemo(() => {
-    let bulls = 0;
-    let bears = 0;
-    list.posts.forEach((p) => {
-      if (p.stance === "bull") bulls++;
-      else if (p.stance === "bear") bears++;
-    });
-    if (detail) {
-      bulls = Math.max(bulls, detail.bulls);
-      bears = Math.max(bears, detail.bears);
-    }
+  const quote = useMemo(
+    () => snapshot?.quotes.find((row) => row.symbol === ticker) ?? null,
+    [snapshot, ticker],
+  );
+  const tapePending = !snapshot && !tapeFailed;
+
+  const sentiment = useMemo(() => {
+    const fromPosts = list.posts.reduce(
+      (counts, post) => {
+        if (post.stance === "bull") counts.bulls += 1;
+        else if (post.stance === "bear") counts.bears += 1;
+        return counts;
+      },
+      { bulls: 0, bears: 0 },
+    );
+    const bulls = detail ? detail.bulls : fromPosts.bulls;
+    const bears = detail ? detail.bears : fromPosts.bears;
     const total = bulls + bears;
     return {
-      pctBull: total > 0 ? Math.round((bulls / total) * 100) : (trend?.bull ?? 50),
+      bulls,
+      bears,
       total,
+      pctBull: total > 0 ? Math.round((bulls / total) * 100) : 0,
     };
-  }, [list.posts, detail, trend]);
+  }, [list.posts, detail]);
 
-  const initialTickerData = useMemo(() => getTickerData(ticker), [ticker]);
-  const [livePrice, setLivePrice] = useState(initialTickerData.price);
-  const [liveChange, setLiveChange] = useState(initialTickerData.change);
-  const [flashColor, setFlashColor] = useState<"up" | "down" | null>(null);
-
-  useEffect(() => {
-    setLivePrice(initialTickerData.price);
-    setLiveChange(initialTickerData.change);
-    setFlashColor(null);
-    const interval = setInterval(() => {
-      if (Math.random() > 0.4) {
-        setLivePrice((prev) => {
-          const move = prev * (Math.random() * 0.002);
-          const isUp = Math.random() > 0.5;
-          const next = isUp ? prev + move : prev - move;
-          setLiveChange((c) => (isUp ? c + 0.05 : c - 0.05));
-          setFlashColor(isUp ? "up" : "down");
-          setTimeout(() => setFlashColor(null), 800);
-          return next;
-        });
-      }
-    }, 2500);
-    return () => clearInterval(interval);
-  }, [ticker, initialTickerData.price, initialTickerData.change]);
-
-  const isPositive = liveChange >= 0;
-  const postCount = detail?.postCount ?? list.posts.length;
+  const company = detail?.name && detail.name.toUpperCase() !== ticker ? detail.name : null;
+  const rawSector = quote?.sector || detail?.sector;
+  const sector = rawSector ? formatSector(rawSector) : "NGX";
+  const postCount = detail ? detail.postCount : list.loading || list.error ? null : list.posts.length;
+  const up = (quote?.changePct ?? 0) > 0;
+  const down = (quote?.changePct ?? 0) < 0;
+  const tone = up ? "text-primary" : down ? "text-bear" : "text-muted-foreground";
 
   return (
     <>
       <PageHeader
         title={`$${ticker}`}
-        subtitle={`${postCount} posts`}
+        subtitle={company ?? undefined}
         back
         action={
           <button
@@ -103,66 +101,69 @@ export default function TickerRoom() {
             {followingTicker ? "Following" : "Follow"}
           </button>
         }
-      >
-        <div className="flex items-center gap-2 px-4 pb-3 font-mono text-sm">
-          <span
-            className={cn(
-              "font-semibold transition-colors duration-300",
-              flashColor === "up" ? "text-primary" : flashColor === "down" ? "text-bear" : "",
-            )}
-          >
-            ₦{livePrice.toFixed(2)}
-          </span>
-          <span
-            className={cn(
-              "rounded px-1.5 py-0.5 text-xs font-bold transition-all duration-300",
-              isPositive ? "bg-primary/20 text-primary" : "bg-bear/20 text-bear",
-              flashColor === "up" && "scale-105 bg-primary text-primary-foreground shadow-[0_0_15px_-3px_var(--primary)]",
-              flashColor === "down" && "scale-105 bg-bear text-primary-foreground shadow-[0_0_15px_-3px_var(--bear)]",
-            )}
-          >
-            {isPositive ? "+" : ""}
-            {liveChange.toFixed(2)}%
-          </span>
-        </div>
-      </PageHeader>
+      />
 
-      <div className="border-b bg-card/50 px-4 py-6 animate-in fade-in">
-        <h2 className="mb-4 font-display text-xl font-semibold">What's your move on ${ticker}?</h2>
-        <SentimentBar bull={sentimentStats.pctBull} label={`$${ticker} sentiment`} />
+      <section className="border-b px-4 py-5" aria-label={`${ticker} quote`}>
+        {quote ? (
+          <div className="flex items-end justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-xs font-medium tracking-wide text-muted-foreground">{sector}</p>
+              <p className="mt-2 font-mono text-4xl font-semibold tracking-tight">₦{formatNaira(quote.price)}</p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className={cn("font-mono text-lg font-semibold", tone)}>{formatChange(quote.changePct)}</p>
+              {quote.changePct !== 0 && (
+                <p className={cn("mt-0.5 font-mono text-sm", tone)}>{formatMove(moveNaira(quote.price, quote.changePct))}</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <p className="text-xs font-medium tracking-wide text-muted-foreground">{sector}</p>
+            {tapePending ? (
+              <div className="mt-3 h-10 w-40 animate-pulse rounded-md bg-card" aria-hidden="true" />
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground">
+                {tapeFailed ? "The NGX session is unavailable right now." : `No NGX print for $${ticker} this session.`}
+              </p>
+            )}
+            {tapePending && <p className="sr-only">Loading the session price</p>}
+          </div>
+        )}
 
-        <div className="mt-6 flex justify-between gap-4">
-          <button
-            type="button"
-            onClick={() => {
-              void publish(`I'm aggressively buying $${ticker} here. The fundamentals are too good to ignore.`, "bull");
-            }}
-            className="flex flex-1 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 py-3 text-sm font-bold text-primary transition-colors hover:bg-primary/20"
-          >
-            Bullish
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              void publish(`I'm taking profits on $${ticker} and watching from the sidelines.`, "bear");
-            }}
-            className="flex flex-1 items-center justify-center rounded-lg border border-bear/20 bg-bear/10 py-3 text-sm font-bold text-bear transition-colors hover:bg-bear/20"
-          >
-            Bearish
-          </button>
-        </div>
-      </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          {snapshot?.sessionDate ? `NGX close · ${formatSession(snapshot.sessionDate)}` : "NGX close"}
+          {postCount != null && (
+            <>
+              <span className="mx-1.5">·</span>
+              {postCount} {postCount === 1 ? "post" : "posts"}
+            </>
+          )}
+        </p>
+
+        {sentiment.total > 0 && (
+          <div className="mt-5">
+            <div className="mb-2 flex items-baseline justify-between gap-3">
+              <h2 className="text-sm font-semibold">Sentiment</h2>
+              <p className="font-mono text-xs text-muted-foreground">
+                {sentiment.bulls} bull · {sentiment.bears} bear
+              </p>
+            </div>
+            <SentimentBar bull={sentiment.pctBull} label={`$${ticker} posts`} />
+          </div>
+        )}
+      </section>
 
       <Composer
         key={ticker}
-        ref={composerRef}
         onPost={(body, stance) => publish(body, stance)}
         initialValue={`$${ticker} `}
+        placeholder={`What's your read on $${ticker}?`}
       />
 
       <PostFeed
         list={list}
-        empty={<EmptyState title="Quiet on the floor" body={`Be the first to share a thesis on $${ticker}.`} />}
+        empty={<EmptyState title="Quiet on the floor" body={`Be the first to share a read on $${ticker}.`} />}
       />
     </>
   );
