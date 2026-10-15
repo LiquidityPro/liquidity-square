@@ -1,9 +1,11 @@
 import { Router, Response } from "express";
 import { prisma } from "../lib/prisma";
-import { AUTHOR_SELECT, toAuthorDto } from "../lib/author";
+import { AUTHOR_SELECT } from "../lib/author";
+import { notificationSelect, toNotificationDto } from "../lib/notification-dto";
 import { postInclude, toPostDto } from "../lib/post";
 import { authenticateJwt, AuthenticatedRequest } from "../middleware/auth";
 import { toMessageDto, unreadMessageCount } from "../lib/messages";
+import { hiddenAuthorIds } from "../lib/visibility";
 
 export const liveRouter = Router();
 
@@ -20,6 +22,7 @@ const OVERLAP_MS = 2_000;
 liveRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.userId!;
+    const hidden = await hiddenAuthorIds(userId);
     const now = new Date();
     const sinceRaw = req.query.since;
     const parsed = typeof sinceRaw === "string" ? Date.parse(sinceRaw) : Number.NaN;
@@ -29,7 +32,10 @@ liveRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<vo
       prisma.notification.count({ where: { recipientId: userId, readAt: null } }),
       unreadMessageCount(userId),
       prisma.post.findMany({
-        where: { createdAt: { gt: after, lte: now } },
+        where: {
+          createdAt: { gt: after, lte: now },
+          ...(hidden.length ? { authorId: { notIn: hidden } } : {}),
+        },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: LIVE_LIMIT,
         include: postInclude(userId),
@@ -38,14 +44,7 @@ liveRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<vo
         where: { recipientId: userId, createdAt: { gt: after, lte: now } },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: LIVE_LIMIT,
-        select: {
-          id: true,
-          type: true,
-          readAt: true,
-          createdAt: true,
-          actor: { select: AUTHOR_SELECT },
-          post: { select: { id: true, body: true } },
-        },
+        select: notificationSelect,
       }),
       prisma.directMessage.findMany({
         where: {
@@ -77,14 +76,7 @@ liveRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<vo
         conversationId: read.conversationId,
         readAt: read.lastReadAt.toISOString(),
       })),
-      notifications: notifications.map((n) => ({
-        id: n.id,
-        type: n.type,
-        read: n.readAt !== null,
-        createdAt: n.createdAt.toISOString(),
-        actor: toAuthorDto(n.actor),
-        post: n.post,
-      })),
+      notifications: notifications.map(toNotificationDto),
     });
   } catch (error) {
     console.error("Live update error:", error);

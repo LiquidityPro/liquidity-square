@@ -1,6 +1,7 @@
 import { NotificationType } from "@prisma/client";
 import { prisma } from "./prisma";
 import { deliverPush } from "./push";
+import { isBlockedEitherWay } from "./visibility";
 
 type NotifyArgs = {
   type: NotificationType;
@@ -13,6 +14,7 @@ type NotifyArgs = {
 export async function notify({ type, actorId, recipientId, postId = null }: NotifyArgs): Promise<void> {
   if (actorId === recipientId) return;
   try {
+    if (await isBlockedEitherWay(actorId, recipientId)) return;
     const notification = await prisma.notification.create({ data: { type, actorId, recipientId, postId } });
     await deliverPush(notification.id);
   } catch (error) {

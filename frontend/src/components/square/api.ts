@@ -1,5 +1,19 @@
 import { signOutSession } from "@/lib/session";
-import type { Author, NotificationType, Post, Profile, SquareNotification, Stance, TickerSummary } from "./data";
+import type {
+  Author,
+  NotificationType,
+  Poll,
+  Post,
+  PriceAlert,
+  Profile,
+  QuotedPost,
+  ReportReason,
+  SentimentCounts,
+  SentimentWindows,
+  SquareNotification,
+  Stance,
+  TickerSummary,
+} from "./data";
 
 type AuthorDto = {
   id: string;
@@ -8,6 +22,21 @@ type AuthorDto = {
   initials: string;
   image: string | null;
   title?: string | null;
+};
+
+type QuoteDto = {
+  id: string;
+  author: AuthorDto;
+  body: string;
+  stance: Stance;
+  tickers: string[];
+  createdAt: string;
+};
+
+type PollDto = {
+  totalVotes: number;
+  myOptionId: string | null;
+  options: { id: string; label: string; stance: Stance; votes: number }[];
 };
 
 type PostDto = {
@@ -24,6 +53,8 @@ type PostDto = {
   bookmarkedByMe: boolean;
   parentId: string | null;
   replyTo: AuthorDto | null;
+  quote: QuoteDto | null;
+  poll: PollDto | null;
   createdAt: string;
 };
 
@@ -83,6 +114,26 @@ function toAuthor(dto: AuthorDto): Author {
   };
 }
 
+function toQuote(dto: QuoteDto): QuotedPost {
+  return {
+    id: dto.id,
+    author: toAuthor(dto.author),
+    body: dto.body,
+    stance: dto.stance,
+    tickers: dto.tickers,
+    createdAt: dto.createdAt,
+    time: relativeTime(dto.createdAt),
+  };
+}
+
+function toPoll(dto: PollDto): Poll {
+  return {
+    totalVotes: dto.totalVotes,
+    myOptionId: dto.myOptionId,
+    options: dto.options,
+  };
+}
+
 function toPost(dto: PostDto): Post {
   return {
     id: dto.id,
@@ -100,6 +151,8 @@ function toPost(dto: PostDto): Post {
     bookmarkedByMe: dto.bookmarkedByMe,
     parentId: dto.parentId,
     replyTo: dto.replyTo ? toAuthor(dto.replyTo) : null,
+    quote: dto.quote ? toQuote(dto.quote) : null,
+    poll: dto.poll ? toPoll(dto.poll) : null,
   };
 }
 
@@ -112,7 +165,8 @@ function toPage({ posts, nextCursor }: PageDto): PostPage {
 
 export type PostFilters = {
   ticker?: string;
-  feed?: "following";
+  sector?: string;
+  feed?: "following" | "watchlist";
   author?: string;
   likedBy?: string;
   repostedBy?: string;
@@ -120,11 +174,22 @@ export type PostFilters = {
   cursor?: string | null;
 };
 
+export type PollDraft = { options: { label: string; stance: Stance }[] };
+
+export type PostDraft = {
+  body: string;
+  stance: Stance;
+  parentId?: string | null;
+  quoteId?: string | null;
+  poll?: PollDraft | null;
+};
+
 export async function fetchPosts(token: string, filters: PostFilters = {}): Promise<PostPage> {
   return toPage(
     await request<PageDto>(
       `/posts${query({
         ticker: filters.ticker,
+        sector: filters.sector,
         feed: filters.feed,
         author: filters.author,
         likedBy: filters.likedBy,
@@ -149,14 +214,16 @@ export async function fetchReplies(token: string, id: string, cursor?: string | 
   return toPage(await request<PageDto>(`/posts/${encodeURIComponent(id)}/replies${query({ cursor })}`, token));
 }
 
-export async function createPost(
-  token: string,
-  body: string,
-  stance: Stance,
-  parentId?: string | null,
-): Promise<Post> {
-  const { post } = await request<{ post: PostDto }>("/posts", token, "POST", { body, stance, parentId });
+export async function createPost(token: string, draft: PostDraft): Promise<Post> {
+  const { post } = await request<{ post: PostDto }>("/posts", token, "POST", draft);
   return toPost(post);
+}
+
+export async function voteOnPoll(token: string, postId: string, optionId: string): Promise<Poll> {
+  const { poll } = await request<{ poll: PollDto }>(`/posts/${encodeURIComponent(postId)}/vote`, token, "POST", {
+    optionId,
+  });
+  return toPoll(poll);
 }
 
 export async function deletePost(token: string, id: string): Promise<void> {
@@ -238,19 +305,105 @@ export async function fetchBookmarks(token: string, cursor?: string | null): Pro
 /* Tickers & search                                                    */
 /* ------------------------------------------------------------------ */
 
-export async function fetchTickers(token: string, limit = 10): Promise<TickerSummary[]> {
-  const { tickers } = await request<{ tickers: TickerSummary[] }>(`/tickers${query({ limit: String(limit) })}`, token);
+export async function fetchTickers(token: string, limit = 10, sector?: string): Promise<TickerSummary[]> {
+  const { tickers } = await request<{ tickers: TickerSummary[] }>(
+    `/tickers${query({ limit: String(limit), sector })}`,
+    token,
+  );
   return tickers;
 }
 
-export type TickerDetail = TickerSummary & { bulls: number; bears: number };
+export type TickerDetail = TickerSummary & {
+  bulls: number;
+  bears: number;
+  watchedByMe: boolean;
+  sentiment: SentimentWindows;
+};
 
-export async function fetchTicker(token: string, symbol: string): Promise<TickerDetail> {
+export async function fetchTicker(token: string, symbol: string, session?: string | null): Promise<TickerDetail> {
   const { ticker } = await request<{ ticker: TickerDetail }>(
-    `/tickers/${encodeURIComponent(symbol.replace(/^\$/, "").toUpperCase())}`,
+    `/tickers/${encodeURIComponent(symbol.replace(/^\$/, "").toUpperCase())}${query({ session })}`,
     token,
   );
   return ticker;
+}
+
+export async function fetchWatchlist(token: string): Promise<TickerSummary[]> {
+  const { tickers } = await request<{ tickers: TickerSummary[] }>("/tickers/watching", token);
+  return tickers;
+}
+
+export function setWatching(token: string, symbol: string, on: boolean) {
+  const path = `/tickers/${encodeURIComponent(symbol.replace(/^\$/, "").toUpperCase())}/watch`;
+  return request<{ watching: boolean }>(path, token, on ? "POST" : "DELETE");
+}
+
+export async function fetchSentiment(
+  token: string,
+  symbols: string[],
+  window: "session" | "week" | "month",
+  session?: string | null,
+): Promise<Array<SentimentCounts & { symbol: string }>> {
+  const { sentiment } = await request<{ sentiment: Array<SentimentCounts & { symbol: string }> }>(
+    `/tickers/sentiment${query({
+      symbols: symbols.join(","),
+      window,
+      session,
+    })}`,
+    token,
+  );
+  return sentiment;
+}
+
+export async function fetchAlert(token: string, symbol: string): Promise<PriceAlert | null> {
+  const { alerts } = await request<{ alerts: PriceAlert[] }>(
+    `/alerts${query({ symbol: symbol.replace(/^\$/, "").toUpperCase() })}`,
+    token,
+  );
+  return alerts[0] ?? null;
+}
+
+export async function saveAlert(
+  token: string,
+  symbol: string,
+  input: { thresholdPct: number; direction: PriceAlert["direction"] },
+): Promise<PriceAlert> {
+  const { alert } = await request<{ alert: PriceAlert }>(
+    `/alerts/${encodeURIComponent(symbol.replace(/^\$/, "").toUpperCase())}`,
+    token,
+    "PUT",
+    input,
+  );
+  return alert;
+}
+
+export async function deleteAlert(token: string, symbol: string): Promise<void> {
+  await request(`/alerts/${encodeURIComponent(symbol.replace(/^\$/, "").toUpperCase())}`, token, "DELETE");
+}
+
+export function setMuted(token: string, userId: string, on: boolean) {
+  return request<{ muted: boolean }>(`/safety/mute/${encodeURIComponent(userId)}`, token, on ? "POST" : "DELETE");
+}
+
+export function setBlocked(token: string, userId: string, on: boolean) {
+  return request<{ blocked: boolean }>(`/safety/block/${encodeURIComponent(userId)}`, token, on ? "POST" : "DELETE");
+}
+
+export async function fetchMuted(token: string): Promise<Author[]> {
+  const { users } = await request<{ users: AuthorDto[] }>("/safety/muted", token);
+  return users.map(toAuthor);
+}
+
+export async function fetchBlocked(token: string): Promise<Author[]> {
+  const { users } = await request<{ users: AuthorDto[] }>("/safety/blocked", token);
+  return users.map(toAuthor);
+}
+
+export async function reportContent(
+  token: string,
+  input: { reason: ReportReason; note?: string; postId?: string; userId?: string },
+): Promise<void> {
+  await request("/safety/reports", token, "POST", input);
 }
 
 export type SearchResults = { tickers: TickerSummary[]; users: Author[]; posts: Post[] };
@@ -273,6 +426,9 @@ type NotificationDto = {
   createdAt: string;
   actor: AuthorDto;
   post: { id: string; body: string } | null;
+  symbol?: string | null;
+  summary?: string | null;
+  href?: string | null;
 };
 
 function toNotification(n: NotificationDto): SquareNotification {
@@ -283,7 +439,15 @@ function toNotification(n: NotificationDto): SquareNotification {
     time: relativeTime(n.createdAt),
     actor: toAuthor(n.actor),
     post: n.post,
+    symbol: n.symbol,
+    summary: n.summary,
+    href: n.href,
   };
+}
+
+export async function syncDisclosures(token: string): Promise<{ delivered: number; notifications: SquareNotification[] }> {
+  const result = await request<{ delivered: number; notifications: NotificationDto[] }>("/disclosures/sync", token, "POST");
+  return { delivered: result.delivered, notifications: result.notifications.map(toNotification) };
 }
 
 export async function fetchNotifications(

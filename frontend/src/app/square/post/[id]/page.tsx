@@ -84,6 +84,7 @@ function PostThread() {
           />
           <Composer
             key={id}
+            allowPoll={false}
             onPost={(body, stance) => publish(body, stance, id)}
             placeholder={`Reply to @${post.author.handle}`}
             submitLabel="Reply"

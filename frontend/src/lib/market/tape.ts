@@ -9,6 +9,12 @@ export type TapeQuote = {
   price: number;
   changePct: number;
   sector: string;
+  volume: number | null;
+  value: number | null;
+  trades: number | null;
+  high: number | null;
+  low: number | null;
+  open: number | null;
 };
 
 export type TapeSnapshot = {
@@ -22,8 +28,14 @@ type NgxEquity = {
   Symbol?: string;
   ClosePrice?: number | null;
   PrevClosingPrice?: number | null;
+  OpeningPrice?: number | null;
+  HighPrice?: number | null;
+  LowPrice?: number | null;
   Change?: number | null;
   PercChange?: number | null;
+  Volume?: number | null;
+  Value?: number | null;
+  Trades?: number | null;
   TradeDate?: string;
   Sector?: string | null;
 };
@@ -42,6 +54,10 @@ function round2(value: number): number {
 
 function finite(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+function stat(value: number | null | undefined): number | null {
+  return finite(value) ? value : null;
 }
 
 export function changePercent(row: NgxEquity): number {
@@ -101,6 +117,12 @@ export function normalizeEquities(rows: NgxEquity[]): { sessionDate: string; quo
       price: quote.price,
       changePct: quote.changePct,
       sector: row.Sector?.trim() || "NGX",
+      volume: stat(row.Volume),
+      value: stat(row.Value),
+      trades: stat(row.Trades),
+      high: stat(row.HighPrice),
+      low: stat(row.LowPrice),
+      open: stat(row.OpeningPrice),
     });
   }
 

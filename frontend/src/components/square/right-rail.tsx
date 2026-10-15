@@ -6,10 +6,10 @@ import { useRouter } from "next/navigation";
 import { LuSearch as Search } from "react-icons/lu";
 import { UserRow } from "./user-row";
 import { compact, type Author, type TickerSummary } from "./data";
-import { fetchSuggested, fetchTickers } from "./api";
+import { fetchSentiment, fetchSuggested, fetchTickers } from "./api";
 import { useSquare } from "./context";
 import { useMarketTape } from "./use-market-tape";
-import { formatChange, formatMove, formatNaira, formatSector, formatSession, moveNaira, topMovers } from "@/lib/market/quotes";
+import { formatChange, formatCount, formatMove, formatNaira, formatSector, formatSession, formatTurnover, moveNaira, sectorPath, topMovers } from "@/lib/market/quotes";
 import type { TapeQuote } from "@/lib/market/tape";
 import { cn } from "@/lib/utils";
 
@@ -178,6 +178,7 @@ export function RightRail({
         )}
 
         <TopMoversCard quotes={snapshot?.quotes} sessionDate={snapshot?.sessionDate} failed={tapeFailed} />
+        <FloorVsTape quotes={snapshot?.quotes} sessionDate={snapshot?.sessionDate} token={token} ready={ready} />
 
         <section className="rounded-2xl border bg-card pb-2">
           <h2 className="px-4 pb-1 pt-3 text-xl font-bold">Who to follow</h2>
@@ -258,7 +259,29 @@ function TickerQuoteCard({
               </>
             )}
           </p>
-          <p className="mt-2 text-xs text-muted-foreground">{formatSector(quote.sector || "NGX")}</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {quote.sector ? (
+              <Link href={sectorPath(quote.sector)} className="hover:underline">
+                {formatSector(quote.sector)}
+              </Link>
+            ) : (
+              "NGX"
+            )}
+          </p>
+          <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+            {quote.volume != null && (
+              <div>
+                <dt className="text-muted-foreground">Volume</dt>
+                <dd className="font-mono font-semibold">{formatCount(quote.volume)}</dd>
+              </div>
+            )}
+            {quote.value != null && (
+              <div>
+                <dt className="text-muted-foreground">Value</dt>
+                <dd className="font-mono font-semibold">{formatTurnover(quote.value)}</dd>
+              </div>
+            )}
+          </dl>
         </>
       ) : (
         <p className="mt-3 text-sm text-muted-foreground">
@@ -308,6 +331,88 @@ export function TopMoversCard({
         pending={!sessionDate && !failed}
         empty={sessionDate ? "No losers yet." : "Session unavailable."}
       />
+    </section>
+  );
+}
+
+function FloorVsTape({
+  quotes,
+  sessionDate,
+  token,
+  ready,
+}: {
+  quotes?: TapeQuote[];
+  sessionDate?: string;
+  token?: string;
+  ready: boolean;
+}) {
+  const router = useRouter();
+  const movers = useMemo(() => {
+    return [...(quotes ?? [])]
+      .filter((quote) => Math.abs(quote.changePct) >= 3)
+      .sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct))
+      .slice(0, 12);
+  }, [quotes]);
+  const [counts, setCounts] = useState<Record<string, { bulls: number; bears: number }>>({});
+
+  useEffect(() => {
+    if (!ready || !token || movers.length === 0) return;
+    let cancelled = false;
+    fetchSentiment(
+      token,
+      movers.map((quote) => quote.symbol),
+      "session",
+      sessionDate,
+    )
+      .then((rows) => {
+        if (cancelled) return;
+        const next: Record<string, { bulls: number; bears: number }> = {};
+        for (const row of rows) next[row.symbol] = { bulls: row.bulls, bears: row.bears };
+        setCounts(next);
+      })
+      .catch(() => {
+        if (!cancelled) setCounts({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, token, movers, sessionDate]);
+
+  const rows = movers.flatMap((quote) => {
+    const count = counts[quote.symbol];
+    if (!count) return [];
+    const total = count.bulls + count.bears;
+    const against =
+      total >= 2 && ((quote.changePct > 0 && count.bears > count.bulls) || (quote.changePct < 0 && count.bulls > count.bears));
+    const quiet = total === 0 && Math.abs(quote.changePct) >= 5;
+    if (!against && !quiet) return [];
+    return [{ quote, count, quiet }];
+  }).slice(0, 4);
+
+  if (rows.length === 0) return null;
+
+  return (
+    <section className="rounded-2xl border bg-card pb-2">
+      <h2 className="px-4 pb-1 pt-3 text-xl font-bold">Floor vs tape</h2>
+      <ul>
+        {rows.map(({ quote, count, quiet }) => (
+          <li key={quote.symbol}>
+            <button
+              type="button"
+              onClick={() => router.push(`/square/${quote.symbol}`)}
+              className="w-full px-4 py-3 text-left hover:bg-background/60"
+            >
+              <p className="font-mono font-semibold">${quote.symbol}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {formatChange(quote.changePct)}
+                {quiet
+                  ? " · moving with almost no reads"
+                  : ` · floor is ${count.bulls >= count.bears ? "bull" : "bear"} ${count.bulls}–${count.bears}`}
+              </p>
+            </button>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

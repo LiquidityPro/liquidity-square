@@ -13,10 +13,45 @@ export type Author = {
   role?: string;
 };
 
-export type Poll = {
-  question: string;
-  options: { label: string; votes: number }[];
+export type PollOption = {
+  id?: string;
+  label: string;
+  votes: number;
+  stance?: Stance;
 };
+
+export type Poll = {
+  question?: string;
+  totalVotes?: number;
+  myOptionId?: string | null;
+  options: PollOption[];
+};
+
+export type QuotedPost = {
+  id: string;
+  author: Author;
+  body: string;
+  stance: Stance;
+  tickers: string[];
+  createdAt?: string;
+  time?: string;
+};
+
+export type SentimentCounts = { bulls: number; bears: number };
+
+export type SentimentWindows = {
+  session: SentimentCounts;
+  week: SentimentCounts;
+  month: SentimentCounts;
+};
+
+export type PriceAlert = {
+  symbol: string;
+  thresholdPct: number;
+  direction: "up" | "down" | "either";
+};
+
+export type ReportReason = "spam" | "harassment" | "misinformation" | "other";
 
 export type Post = {
   id: string;
@@ -34,7 +69,8 @@ export type Post = {
   bookmarkedByMe?: boolean;
   parentId?: string | null;
   replyTo?: Author | null;
-  poll?: Poll;
+  quote?: QuotedPost | null;
+  poll?: Poll | null;
   room?: { title: string; analyst: string };
 };
 
@@ -48,6 +84,9 @@ export type Profile = Author & {
   followers: number;
   following: number;
   followedByMe: boolean;
+  mutedByMe?: boolean;
+  blockedByMe?: boolean;
+  blockedMe?: boolean;
   bio?: string | null;
   location?: string | null;
   website?: string | null;
@@ -56,7 +95,7 @@ export type Profile = Author & {
   titleLockedUntil?: string | null;
 };
 
-export type NotificationType = "like" | "follow" | "reply" | "repost";
+export type NotificationType = "like" | "follow" | "reply" | "repost" | "quote" | "alert" | "disclosure";
 
 export type SquareNotification = {
   id: string;
@@ -65,13 +104,37 @@ export type SquareNotification = {
   time: string;
   actor: Author;
   post: { id: string; body: string } | null;
+  symbol?: string | null;
+  summary?: string | null;
+  href?: string | null;
 };
+
+const NGX_FILING = /^https:\/\/([a-z0-9-]+\.)*ngxgroup\.com\//i;
+
+export function notificationLink(item: Pick<SquareNotification, "type" | "href" | "symbol" | "post" | "actor">): {
+  href: string;
+  external: boolean;
+} {
+  if (item.type === "disclosure" && item.href && NGX_FILING.test(item.href)) {
+    return { href: item.href, external: true };
+  }
+  if ((item.type === "alert" || item.type === "disclosure") && item.symbol) {
+    return { href: `/square/${item.symbol}`, external: false };
+  }
+  if (item.post) return { href: `/square/post/${item.post.id}`, external: false };
+  if (item.actor.id) return { href: `/square/u/${item.actor.id}`, external: false };
+  return { href: "/square/notifications", external: false };
+}
 
 export type TickerSummary = {
   symbol: string;
   name: string | null;
   sector: string | null;
   postCount: number;
+  watchedByMe?: boolean;
+  bulls?: number;
+  bears?: number;
+  sentiment?: SentimentWindows;
 };
 
 export const ME: Author = { name: "Nonso", handle: "nonso", initials: "NO" };
@@ -136,9 +199,9 @@ export const POSTS: Post[] = [
     poll: {
       question: "$MTNN over the next quarter?",
       options: [
-        { label: "Bullish - FX impact is priced in", votes: 412 },
-        { label: "Bearish - Margins will keep shrinking", votes: 198 },
-        { label: "Just watching for now", votes: 140 },
+        { label: "Bullish - FX impact is priced in", votes: 412, stance: "bull" },
+        { label: "Bearish - Margins will keep shrinking", votes: 198, stance: "bear" },
+        { label: "Just watching for now", votes: 140, stance: null },
       ],
     },
   },

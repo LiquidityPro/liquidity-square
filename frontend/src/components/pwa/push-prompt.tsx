@@ -54,7 +54,18 @@ export function PushPrompt() {
       toast(data.title, {
         description: data.body || undefined,
         duration: 8000,
-        action: data.url ? { label: "View", onClick: () => router.push(data.url!) } : undefined,
+        action: data.url
+          ? {
+              label: "View",
+              onClick: () => {
+                if (/^https:\/\/([a-z0-9-]+\.)*ngxgroup\.com\//i.test(data.url!)) {
+                  window.open(data.url, "_blank", "noopener,noreferrer");
+                  return;
+                }
+                router.push(data.url!);
+              },
+            }
+          : undefined,
       });
     };
     navigator.serviceWorker.addEventListener("message", onMessage);

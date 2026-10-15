@@ -14,7 +14,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { type Author, type NotificationType, type Post, type SquareNotification, extractTickers, type Stance } from "./data";
+import { type Author, type NotificationType, type Post, type SquareNotification, extractTickers, notificationLink, type Stance } from "./data";
 import {
   createPost,
   deletePost as deletePostRequest,
@@ -22,8 +22,11 @@ import {
   markNotificationsRead,
   setFollowing,
   setReaction,
+  syncDisclosures,
+  voteOnPoll,
   type ChatMessage,
   type LiveUpdate,
+  type PollDraft,
   type Reaction,
 } from "./api";
 import { useLiveTracker } from "./use-live-tracker";
@@ -43,7 +46,14 @@ type SquareContextType = {
   /** Notifications that arrived while this session was open, newest first. */
   incomingNotifications: SquareNotification[];
   cachePosts: (posts: Post[]) => void;
-  publish: (body: string, stance: Stance, parentId?: string | null) => Promise<void>;
+  publish: (
+    body: string,
+    stance: Stance,
+    parentId?: string | null,
+    extras?: { quoteId?: string | null; poll?: PollDraft | null },
+  ) => Promise<void>;
+  votePoll: (postId: string, optionId: string) => Promise<void>;
+  hideAuthor: (authorId: string) => void;
   deletePost: (postId: string) => Promise<boolean>;
   toggleLike: (postId: string) => void;
   toggleRepost: (postId: string) => void;
@@ -73,6 +83,9 @@ const NOTIFICATION_COPY: Record<NotificationType, string> = {
   follow: "followed you",
   reply: "replied to your post",
   repost: "reposted your post",
+  quote: "quoted your post",
+  alert: "sent a price alert",
+  disclosure: "filed on the NGX",
 };
 
 export const isPendingPost = (id: string) => id.startsWith(PENDING_PREFIX);
@@ -199,6 +212,35 @@ export function SquareProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    syncDisclosures(token)
+      .then(({ notifications }) => {
+        if (cancelled || notifications.length === 0) return;
+        addIncomingNotifications(notifications);
+        for (const item of notifications) {
+          if (!claimToast(item.id)) continue;
+          const link = notificationLink(item);
+          toast(item.summary || "New NGX filing", {
+            description: item.symbol ? `$${item.symbol}` : undefined,
+            duration: 8000,
+            action: {
+              label: "View",
+              onClick: () => {
+                if (link.external) window.open(link.href, "_blank", "noopener,noreferrer");
+                else router.push(link.href);
+              },
+            },
+          });
+        }
+      })
+      .catch((err) => console.error("Disclosure sync failed", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [token, addIncomingNotifications, router]);
+
   const livePrimed = useRef(false);
 
   const applyLive = useCallback(
@@ -235,11 +277,18 @@ export function SquareProvider({ children }: { children: ReactNode }) {
           continue;
         }
         if (document.visibilityState !== "visible" || !claimToast(item.id)) continue;
-        const href = item.post ? `/square/post/${item.post.id}` : item.actor.id ? `/square/u/${item.actor.id}` : "/square/notifications";
-        toast(`${item.actor.name} ${NOTIFICATION_COPY[item.type]}`, {
-          description: item.post?.body,
+        const link = notificationLink(item);
+        const filing = item.type === "alert" || item.type === "disclosure";
+        toast(filing && item.summary ? item.summary : `${item.actor.name} ${NOTIFICATION_COPY[item.type]}`, {
+          description: filing ? (item.symbol ? `$${item.symbol}` : undefined) : item.post?.body,
           duration: 8000,
-          action: { label: "View", onClick: () => router.push(href) },
+          action: {
+            label: "View",
+            onClick: () => {
+              if (link.external) window.open(link.href, "_blank", "noopener,noreferrer");
+              else router.push(link.href);
+            },
+          },
         });
       }
       for (const message of update.messages) {
@@ -278,9 +327,15 @@ export function SquareProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const publish = useCallback(
-    async (body: string, stance: Stance, parentId: string | null = null) => {
+    async (
+      body: string,
+      stance: Stance,
+      parentId: string | null = null,
+      extras?: { quoteId?: string | null; poll?: PollDraft | null },
+    ) => {
       if (!token) return;
       const pendingId = `${PENDING_PREFIX}${Date.now()}`;
+      const quoted = extras?.quoteId ? postsRef.current[extras.quoteId] : null;
       const pending: Post = {
         id: pendingId,
         author: me,
@@ -294,6 +349,24 @@ export function SquareProvider({ children }: { children: ReactNode }) {
         likes: 0,
         parentId,
         replyTo: parentId ? (postsRef.current[parentId]?.author ?? null) : null,
+        quote: quoted
+          ? {
+              id: quoted.id,
+              author: quoted.author,
+              body: quoted.body,
+              stance: quoted.stance,
+              tickers: quoted.tickers,
+              createdAt: quoted.createdAt,
+              time: quoted.time,
+            }
+          : null,
+        poll: extras?.poll
+          ? {
+              totalVotes: 0,
+              myOptionId: null,
+              options: extras.poll.options.map((option) => ({ ...option, votes: 0 })),
+            }
+          : null,
       };
 
       setPostsById((prev) => ({ ...prev, [pendingId]: pending }));
@@ -301,7 +374,13 @@ export function SquareProvider({ children }: { children: ReactNode }) {
       bumpReplies(parentId, 1);
 
       try {
-        const created = await createPost(token, body, stance, parentId);
+        const created = await createPost(token, {
+          body,
+          stance,
+          parentId,
+          quoteId: extras?.quoteId,
+          poll: extras?.poll,
+        });
         setPostsById((prev) => ({ ...without(prev, [pendingId]), [created.id]: created }));
         setRecentIds((prev) => prev.map((id) => (id === pendingId ? created.id : id)));
       } catch (err) {
@@ -366,6 +445,37 @@ export function SquareProvider({ children }: { children: ReactNode }) {
     [token, patchPost],
   );
 
+  const hideAuthor = useCallback((authorId: string) => {
+    const removed = new Set(
+      Object.values(postsRef.current)
+        .filter((post) => post.author.id === authorId)
+        .map((post) => post.id),
+    );
+    setPostsById((prev) => {
+      const next = { ...prev };
+      for (const id of removed) delete next[id];
+      return next;
+    });
+    setRecentIds((prev) => prev.filter((id) => !removed.has(id)));
+    setIncomingIds((prev) => prev.filter((id) => !removed.has(id)));
+  }, []);
+
+  const votePoll = useCallback(
+    async (postId: string, optionId: string) => {
+      const post = postsRef.current[postId];
+      if (!token || !post?.poll || isPendingPost(postId)) return;
+      const previous = post.poll;
+      try {
+        const poll = await voteOnPoll(token, postId, optionId);
+        patchPost(postId, { poll });
+      } catch (err) {
+        patchPost(postId, { poll: previous });
+        toast.error(errorMessage(err, "Failed to record your vote"));
+      }
+    },
+    [token, patchPost],
+  );
+
   const toggleLike = useCallback((postId: string) => void toggleReaction("like", postId), [toggleReaction]);
   const toggleRepost = useCallback((postId: string) => void toggleReaction("repost", postId), [toggleReaction]);
   const toggleBookmark = useCallback((postId: string) => void toggleReaction("bookmark", postId), [toggleReaction]);
@@ -419,6 +529,8 @@ export function SquareProvider({ children }: { children: ReactNode }) {
       incomingNotifications,
       cachePosts,
       publish,
+      votePoll,
+      hideAuthor,
       deletePost,
       toggleLike,
       toggleRepost,
@@ -444,6 +556,8 @@ export function SquareProvider({ children }: { children: ReactNode }) {
       peerReads,
       cachePosts,
       publish,
+      votePoll,
+      hideAuthor,
       deletePost,
       toggleLike,
       toggleRepost,

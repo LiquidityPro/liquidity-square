@@ -10,9 +10,13 @@ import {
   LuLink as LinkIcon,
   LuLock as Lock,
   LuMessageCircle as MessageCircle,
+  LuBan as Ban,
+  LuFlag as Flag,
+  LuQuote as Quote,
   LuRepeat2 as Repeat2,
   LuShare as Share,
   LuTrash2 as Trash,
+  LuVolumeX as VolumeX,
   LuTrendingDown as TrendingDown,
   LuTrendingUp as TrendingUp,
   LuUserMinus as UserMinus,
@@ -24,6 +28,10 @@ import { roomHref } from "./x-samples";
 import { Avatar, Verified } from "./avatar";
 import { cn } from "@/lib/utils";
 import { isPendingPost, useSquare } from "./context";
+import { setBlocked, setMuted } from "./api";
+import { Composer } from "./composer";
+import { ReportDialog } from "./safety";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { compact, type Author, type Post, type Stance } from "./data";
 import { useCurrentAuthor } from "./use-current-author";
 import {
@@ -174,6 +182,7 @@ type PostCardProps = {
 
 export function PostCard({ post, onTicker, variant = "feed", threadLine, onReply, onDeleted, repostedBy }: PostCardProps) {
   const router = useRouter();
+  const [quoting, setQuoting] = useState(false);
   const pending = isPendingPost(post.id);
   const detail = variant === "detail";
   const goTicker = onTicker ?? ((t: string) => router.push(`/square/${t}`));
@@ -195,7 +204,8 @@ export function PostCard({ post, onTicker, variant = "feed", threadLine, onReply
       >
         <RichText text={post.body} onTicker={goTicker} />
       </p>
-      {post.poll && <PollBlock poll={post.poll} onTicker={goTicker} />}
+      {post.poll && <PollBlock postId={post.id} poll={post.poll} onTicker={goTicker} />}
+      {post.quote && <QuoteEmbed quote={post.quote} />}
       {post.room && <RoomBlock room={post.room} />}
     </>
   );
@@ -235,7 +245,8 @@ export function PostCard({ post, onTicker, variant = "feed", threadLine, onReply
           <Stat value={post.likes} label="Likes" />
         </div>
 
-        <PostActions post={post} onReply={onReply} className="justify-around py-1" />
+        <PostActions post={post} onReply={onReply} onQuote={() => setQuoting(true)} className="justify-around py-1" />
+        <QuoteComposer post={post} open={quoting} onOpenChange={setQuoting} />
       </article>
     );
   }
@@ -285,8 +296,10 @@ export function PostCard({ post, onTicker, variant = "feed", threadLine, onReply
         <PostActions
           post={post}
           onReply={onReply ?? (() => router.push(`${postPath(post.id)}?reply=1`))}
+          onQuote={() => setQuoting(true)}
           className="-ml-2 mt-2 max-w-md justify-between"
         />
+        <QuoteComposer post={post} open={quoting} onOpenChange={setQuoting} />
       </div>
     </article>
   );
@@ -310,7 +323,17 @@ function fullTimestamp(iso: string) {
 /* Actions row                                                         */
 /* ------------------------------------------------------------------ */
 
-function PostActions({ post, onReply, className }: { post: Post; onReply?: () => void; className?: string }) {
+function PostActions({
+  post,
+  onReply,
+  onQuote,
+  className,
+}: {
+  post: Post;
+  onReply?: () => void;
+  onQuote?: () => void;
+  className?: string;
+}) {
   const { toggleLike, toggleRepost, toggleBookmark } = useSquare();
   const pending = isPendingPost(post.id);
   const liked = !!post.likedByMe;
@@ -377,6 +400,12 @@ function PostActions({ post, onReply, className }: { post: Post; onReply?: () =>
         onClick={() => toggleBookmark(post.id)}
       />
       <Action
+        icon={<Quote className="size-[18px]" />}
+        label="Quote"
+        hover="primary"
+        onClick={onQuote}
+      />
+      <Action
         icon={<Share className="size-[18px]" />}
         label="Share"
         hover="primary"
@@ -438,9 +467,10 @@ function Action({
 
 function PostMenu({ post, onDeleted }: { post: Post; onDeleted?: () => void }) {
   const me = useCurrentAuthor();
-  const { following, toggleFollow, deletePost } = useSquare();
+  const { token, following, toggleFollow, deletePost, hideAuthor } = useSquare();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [reporting, setReporting] = useState(false);
 
   if (isPendingPost(post.id)) return null;
 
@@ -491,6 +521,44 @@ function PostMenu({ post, onDeleted }: { post: Post; onDeleted?: () => void }) {
               </DropdownMenuItem>
             )
           )}
+          {!mine && post.author.id && (
+            <>
+              <DropdownMenuItem
+                onSelect={() => {
+                  if (!token || !post.author.id) return;
+                  void setMuted(token, post.author.id, true)
+                    .then(() => {
+                      hideAuthor(post.author.id!);
+                      toast.success(`Muted @${post.author.handle}`);
+                    })
+                    .catch((error: Error) => toast.error(error.message));
+                }}
+                className="cursor-pointer rounded-lg py-2 font-semibold"
+              >
+                <VolumeX /> Mute @{post.author.handle}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  if (!token || !post.author.id) return;
+                  void setBlocked(token, post.author.id, true)
+                    .then(() => {
+                      hideAuthor(post.author.id!);
+                      toast.success(`Blocked @${post.author.handle}`);
+                    })
+                    .catch((error: Error) => toast.error(error.message));
+                }}
+                className="cursor-pointer rounded-lg py-2 font-semibold text-bear focus:bg-bear/10 focus:text-bear"
+              >
+                <Ban /> Block @{post.author.handle}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => setReporting(true)}
+                className="cursor-pointer rounded-lg py-2 font-semibold"
+              >
+                <Flag /> Report post
+              </DropdownMenuItem>
+            </>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => copyPostLink(post.id)}
@@ -500,6 +568,7 @@ function PostMenu({ post, onDeleted }: { post: Post; onDeleted?: () => void }) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <ReportDialog open={reporting} onOpenChange={setReporting} postId={post.id} userId={post.author.id} />
 
       <AlertDialog open={confirmOpen} onOpenChange={(open) => !deleting && setConfirmOpen(open)}>
         <AlertDialogContent
@@ -540,48 +609,134 @@ function PostMenu({ post, onDeleted }: { post: Post; onDeleted?: () => void }) {
 /* Polls and Pro rooms (preview content)                               */
 /* ------------------------------------------------------------------ */
 
-function PollBlock({ poll, onTicker }: { poll: NonNullable<Post["poll"]>; onTicker: (t: string) => void }) {
-  const [vote, setVote] = useState<number | null>(null);
-  const options = poll.options.map((o, i) => ({ ...o, votes: o.votes + (vote === i ? 1 : 0) }));
-  const total = options.reduce((s, o) => s + o.votes, 0);
+function PollBlock({
+  postId,
+  poll,
+  onTicker,
+}: {
+  postId: string;
+  poll: NonNullable<Post["poll"]>;
+  onTicker: (t: string) => void;
+}) {
+  const { votePoll } = useSquare();
+  const live = poll.options.every((option) => option.id);
+  const [localVote, setLocalVote] = useState<number | null>(null);
+  const showResults = live ? !!poll.myOptionId : localVote != null;
+  const options = poll.options.map((option, index) => ({
+    ...option,
+    votes: option.votes + (!live && localVote === index ? 1 : 0),
+  }));
+  const total = live ? (poll.totalVotes ?? options.reduce((sum, option) => sum + option.votes, 0)) : options.reduce((sum, option) => sum + option.votes, 0);
 
   return (
-    <div className="mt-3 rounded-xl border p-3">
-      <p className="mb-2 font-medium">
-        <RichText text={poll.question} onTicker={onTicker} />
-      </p>
+    <div className="mt-3 rounded-xl border p-3" onClick={(event) => event.stopPropagation()}>
+      {poll.question && (
+        <p className="mb-2 font-medium">
+          <RichText text={poll.question} onTicker={onTicker} />
+        </p>
+      )}
       <div className="space-y-2">
-        {options.map((o, i) => {
-          const pct = Math.round((o.votes / total) * 100);
-          return vote === null ? (
+        {options.map((option, index) => {
+          const pct = total > 0 ? Math.round((option.votes / total) * 100) : 0;
+          const selected = live ? option.id === poll.myOptionId : localVote === index;
+          if (!showResults) {
+            return (
+              <button
+                key={option.id ?? option.label}
+                type="button"
+                onClick={() => {
+                  if (live && option.id) void votePoll(postId, option.id);
+                  else setLocalVote(index);
+                }}
+                className="w-full rounded-full border border-primary/50 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10"
+              >
+                {option.label}
+              </button>
+            );
+          }
+          return (
             <button
-              key={o.label}
               type="button"
-              onClick={() => setVote(i)}
-              className="w-full rounded-full border border-primary/50 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10"
+              key={option.id ?? option.label}
+              onClick={() => {
+                if (live && option.id && option.id !== poll.myOptionId) void votePoll(postId, option.id);
+              }}
+              className="relative block w-full overflow-hidden rounded-md text-left"
             >
-              {o.label}
-            </button>
-          ) : (
-            <div key={o.label} className="relative overflow-hidden rounded-md">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${pct}%` }}
                 transition={{ type: "spring", duration: 0.8, bounce: 0.2 }}
-                className={cn("absolute inset-y-0 left-0", vote === i ? "bg-primary/30" : "bg-muted-foreground/20")}
+                className={cn("absolute inset-y-0 left-0", selected ? "bg-primary/30" : "bg-muted-foreground/20")}
               />
               <div className="relative flex justify-between px-3 py-1.5 text-sm">
-                <span className={cn(vote === i && "font-semibold")}>{o.label}</span>
+                <span className={cn(selected && "font-semibold")}>{option.label}</span>
                 <span className="font-mono">{pct}%</span>
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
       <p className="label-mono mt-2 text-muted-foreground">
-        {compact(total)} votes · Illustrative
+        {compact(total)} {total === 1 ? "vote" : "votes"}
+        {!live && " · Illustrative"}
       </p>
     </div>
+  );
+}
+
+function QuoteEmbed({ quote }: { quote: NonNullable<Post["quote"]> }) {
+  return (
+    <Link
+      href={postPath(quote.id)}
+      onClick={(event) => event.stopPropagation()}
+      className="mt-3 block rounded-xl border px-3 py-2 transition hover:bg-card/60"
+    >
+      <p className="truncate text-sm font-semibold">
+        {quote.author.name}{" "}
+        <span className="font-mono text-xs font-normal text-muted-foreground">@{quote.author.handle}</span>
+      </p>
+      <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-sm text-muted-foreground">{quote.body}</p>
+    </Link>
+  );
+}
+
+function QuoteComposer({
+  post,
+  open,
+  onOpenChange,
+}: {
+  post: Post;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { publish } = useSquare();
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent onClick={(event) => event.stopPropagation()} className="max-w-lg rounded-2xl p-0">
+        <DialogHeader className="px-4 pt-4">
+          <DialogTitle>Quote</DialogTitle>
+        </DialogHeader>
+        <Composer
+          fieldId={`quote-${post.id}`}
+          quoted={{
+            id: post.id,
+            author: post.author,
+            body: post.body,
+            stance: post.stance,
+            tickers: post.tickers,
+            createdAt: post.createdAt,
+            time: post.time,
+          }}
+          autoFocus
+          submitLabel="Quote"
+          onPost={(body, stance, extras) => {
+            void publish(body, stance, null, { ...extras, quoteId: post.id });
+            onOpenChange(false);
+          }}
+        />
+      </DialogContent>
+    </Dialog>
   );
 }
 

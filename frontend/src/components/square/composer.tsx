@@ -4,7 +4,8 @@ import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, u
 import { LuChartColumn as ChartColumn, LuTrendingDown as TrendingDown, LuTrendingUp as TrendingUp } from "react-icons/lu";
 import { Avatar } from "./avatar";
 import { cn } from "@/lib/utils";
-import { type Author, type Stance, type TickerSummary } from "./data";
+import { type Author, type QuotedPost, type Stance, type TickerSummary } from "./data";
+import type { PollDraft } from "./api";
 import { useCurrentAuthor } from "./use-current-author";
 import { useSquare } from "./context";
 import { fetchSuggested, fetchTickers, search } from "./api";
@@ -35,12 +36,20 @@ function activeToken(value: string, caret: number): ActiveToken | null {
   return { kind: match[1] as "$" | "@", query: match[2], start: caret - match[2].length - 1 };
 }
 
+const EMPTY_POLL: { label: string; stance: Stance }[] = [
+  { label: "Bullish", stance: "bull" },
+  { label: "Bearish", stance: "bear" },
+];
+
 type ComposerProps = {
-  onPost: (body: string, stance: Stance) => void;
+  onPost: (body: string, stance: Stance, extras?: { poll?: PollDraft | null }) => void;
   initialValue?: string;
   placeholder?: string;
   submitLabel?: string;
   autoFocus?: boolean;
+  allowPoll?: boolean;
+  quoted?: QuotedPost | null;
+  fieldId?: string;
 };
 
 export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
@@ -51,6 +60,9 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
       placeholder = "What's moving? Tag a ticker like $DANGCEM",
       submitLabel = "Post",
       autoFocus,
+      allowPoll = true,
+      quoted,
+      fieldId = "square-composer",
     },
     ref,
   ) {
@@ -69,6 +81,8 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
     );
     const [body, setBody] = useState(initialValue);
     const [stance, setStance] = useState<Stance>(null);
+    const [pollOn, setPollOn] = useState(false);
+    const [pollOptions, setPollOptions] = useState(EMPTY_POLL);
     const [caret, setCaret] = useState(initialValue.length);
     const [activeIndex, setActiveIndex] = useState(0);
     const [people, setPeople] = useState<Author[]>([]);
@@ -77,7 +91,14 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
     const [listedLoading, setListedLoading] = useState(false);
     const [closedKey, setClosedKey] = useState<string | null>(null);
     const left = LIMIT - body.length;
-    const canPost = body.trim().length > 0 && left >= 0;
+    const pollReady =
+      !pollOn ||
+      (pollOptions.length >= 2 &&
+        pollOptions.every((option) => {
+          const label = option.label.trim();
+          return label.length > 0 && label.length <= 40;
+        }));
+    const canPost = body.trim().length > 0 && left >= 0 && pollReady;
     const pct = Math.min(body.length / LIMIT, 1);
     const tokenAtCaret = activeToken(body, caret);
 
@@ -233,9 +254,17 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
 
     function submit() {
       if (!canPost) return;
-      onPost(body.trim(), stance);
+      onPost(
+        body.trim(),
+        stance,
+        pollOn
+          ? { poll: { options: pollOptions.map((option) => ({ label: option.label.trim(), stance: option.stance })) } }
+          : undefined,
+      );
       setBody(initialValue);
       setStance(null);
+      setPollOn(false);
+      setPollOptions(EMPTY_POLL);
       setCaret(initialValue.length);
     }
 
@@ -269,11 +298,19 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
       <div className="flex gap-3 border-b px-4 py-3">
         <Avatar author={me} />
         <div className="min-w-0 flex-1">
-          <label htmlFor="square-composer" className="sr-only">
+          {quoted && (
+            <div className="mb-2 rounded-xl border px-3 py-2 text-sm">
+              <p className="font-semibold">
+                {quoted.author.name} <span className="font-mono text-xs font-normal text-muted-foreground">@{quoted.author.handle}</span>
+              </p>
+              <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-muted-foreground">{quoted.body}</p>
+            </div>
+          )}
+          <label htmlFor={fieldId} className="sr-only">
             Write a post
           </label>
           <textarea
-            id="square-composer"
+            id={fieldId}
             ref={setField}
             value={body}
             rows={2}
@@ -360,18 +397,81 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
               )}
             </ul>
           )}
+          {pollOn && (
+            <div className="mb-3 space-y-2">
+              <p className="text-xs text-muted-foreground">Tag a ticker in the post so votes move that name's bar.</p>
+              {pollOptions.map((option, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <input
+                    value={option.label}
+                    maxLength={40}
+                    aria-label={`Poll option ${index + 1}`}
+                    onChange={(event) =>
+                      setPollOptions((current) =>
+                        current.map((row, rowIndex) => (rowIndex === index ? { ...row, label: event.target.value } : row)),
+                      )
+                    }
+                    className="min-h-9 min-w-0 flex-1 rounded-full border bg-transparent px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                  <select
+                    aria-label={`Stance for option ${index + 1}`}
+                    value={option.stance ?? ""}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      setPollOptions((current) =>
+                        current.map((row, rowIndex) =>
+                          rowIndex === index ? { ...row, stance: next === "bull" || next === "bear" ? next : null } : row,
+                        ),
+                      );
+                    }}
+                    className="h-9 rounded-full border bg-transparent px-2 text-xs"
+                  >
+                    <option value="bull">Bull</option>
+                    <option value="bear">Bear</option>
+                    <option value="">Watching</option>
+                  </select>
+                  {pollOptions.length > 2 && (
+                    <button
+                      type="button"
+                      aria-label={`Remove option ${index + 1}`}
+                      onClick={() => setPollOptions((current) => current.filter((_, rowIndex) => rowIndex !== index))}
+                      className="grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-card hover:text-foreground"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+              {pollOptions.length < 4 && (
+                <button
+                  type="button"
+                  onClick={() => setPollOptions((current) => [...current, { label: "", stance: null }])}
+                  className="text-sm font-semibold text-primary"
+                >
+                  Add option
+                </button>
+              )}
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
             <div className="flex items-center gap-1" role="group" aria-label="Your stance">
               <StanceButton current={stance} value="bull" onChange={setStance} />
               <StanceButton current={stance} value="bear" onChange={setStance} />
-              <button
-                type="button"
-                aria-label="Add poll (coming soon)"
-                title="Polls — coming soon"
-                className="grid size-9 place-items-center rounded-full text-primary hover:bg-primary/10"
-              >
-                <ChartColumn className="size-[18px]" />
-              </button>
+              {allowPoll && (
+                <button
+                  type="button"
+                  aria-pressed={pollOn}
+                  aria-label={pollOn ? "Remove poll" : "Add poll"}
+                  title="Poll"
+                  onClick={() => setPollOn((open) => !open)}
+                  className={cn(
+                    "grid size-9 place-items-center rounded-full text-primary hover:bg-primary/10",
+                    pollOn && "bg-primary/10",
+                  )}
+                >
+                  <ChartColumn className="size-[18px]" />
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-3">
               {body.length > 0 && (

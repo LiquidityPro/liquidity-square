@@ -1,3 +1,4 @@
+import "./lib/net-defaults";
 import express, { Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -10,7 +11,11 @@ import { notificationsRouter } from "./routes/notifications";
 import { liveRouter } from "./routes/live";
 import { pushRouter } from "./routes/push";
 import { messagesRouter } from "./routes/messages";
+import { alertsRouter } from "./routes/alerts";
+import { safetyRouter } from "./routes/safety";
+import { disclosuresRouter } from "./routes/disclosures";
 import { ensureListedTickers } from "./lib/listed-tickers";
+import { startDisclosurePoller } from "./lib/disclosures";
 
 dotenv.config({ quiet: true });
 
@@ -50,8 +55,12 @@ app.use("/api/notifications", notificationsRouter);
 app.use("/api/live", liveRouter);
 app.use("/api/push", pushRouter);
 app.use("/api/messages", messagesRouter);
+app.use("/api/alerts", alertsRouter);
+app.use("/api/safety", safetyRouter);
+app.use("/api/disclosures", disclosuresRouter);
 
 void ensureListedTickers();
+if (!process.env.VERCEL) startDisclosurePoller();
 
 // Start server (only in local / non-Vercel environment)
 if (!process.env.VERCEL) {
