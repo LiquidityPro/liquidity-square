@@ -34,6 +34,20 @@ export function formatChange(changePct: number) {
   return `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`;
 }
 
+/** Naira move implied by the session percent, from the previous close. */
+export function moveNaira(price: number, changePct: number): number {
+  if (!Number.isFinite(price) || !Number.isFinite(changePct) || changePct <= -100) return 0;
+  if (changePct === 0) return 0;
+  const previous = price / (1 + changePct / 100);
+  return Math.round((price - previous) * 100) / 100;
+}
+
+export function formatMove(amount: number) {
+  if (!Number.isFinite(amount) || amount === 0) return `₦${formatNaira(0)}`;
+  const sign = amount > 0 ? "+" : "-";
+  return `${sign}₦${formatNaira(Math.abs(amount))}`;
+}
+
 export function formatSession(sessionDate: string) {
   const [year, month, day] = sessionDate.split("-").map(Number);
   if (!year || !month || !day) return sessionDate;
@@ -45,5 +59,13 @@ export function formatSession(sessionDate: string) {
 }
 
 export function formatSector(sector: string) {
-  return sector.toLowerCase().replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+  return sector
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => {
+      if (word.length <= 4 && word === word.toUpperCase()) return word;
+      return word.toLowerCase().replace(/^[a-z]/, (letter) => letter.toUpperCase());
+    })
+    .join(" ");
 }
