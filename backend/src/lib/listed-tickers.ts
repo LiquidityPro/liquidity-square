@@ -77,7 +77,11 @@ async function upsertListed(listed: ListedTicker[]): Promise<number> {
         prisma.ticker.upsert({
           where: { symbol: ticker.symbol },
           create: ticker,
-          update: { name: ticker.name, sector: ticker.sector },
+          update: {
+            // The equities feed often repeats the symbol in Company2. Don't wipe a real name.
+            ...(ticker.name && ticker.name.toUpperCase() !== ticker.symbol ? { name: ticker.name } : {}),
+            ...(ticker.sector ? { sector: ticker.sector } : {}),
+          },
         }),
       ),
     );

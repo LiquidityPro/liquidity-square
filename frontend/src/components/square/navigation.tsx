@@ -10,6 +10,7 @@ import {
   LuBell as Bell,
   LuBookmark as Bookmark,
   LuEllipsis as Ellipsis,
+  LuFileText as FileText,
   LuFeather as Feather,
   LuHash as Hash,
   LuHouse as House,
@@ -46,7 +47,7 @@ const isProfilePath = (pathname: string, href?: string) => !!href && pathname ==
 
 /** Ticker rooms and post threads live under /square too, so they count as Home. */
 function isHomePath(pathname: string) {
-  return !/^\/square\/(explore|notifications|bookmarks|messages|rooms|lists|communities|settings|u)(\/|$)/.test(
+  return !/^\/square\/(explore|notifications|bookmarks|messages|rooms|lists|communities|settings|drafts|u)(\/|$)/.test(
     pathname,
   );
 }
@@ -74,6 +75,7 @@ export function useNavItems(): NavItem[] {
 
 export function useMoreItems(): NavItem[] {
   return [
+    { icon: FileText, label: "Drafts", href: "/square/drafts" },
     { icon: List, label: "Lists", href: "/square/lists" },
     { icon: Users, label: "Communities", href: "/square/communities" },
     { icon: Settings, label: "Settings", href: "/square/settings" },

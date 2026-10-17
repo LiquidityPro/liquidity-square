@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -28,7 +28,8 @@ import { roomHref } from "./x-samples";
 import { Avatar, Verified } from "./avatar";
 import { cn } from "@/lib/utils";
 import { isPendingPost, useSquare } from "./context";
-import { setBlocked, setMuted } from "./api";
+import { fetchEngagement, setBlocked, setMuted } from "./api";
+import { UserRow } from "./user-row";
 import { Composer } from "./composer";
 import { ReportDialog } from "./safety";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -183,6 +184,7 @@ type PostCardProps = {
 export function PostCard({ post, onTicker, variant = "feed", threadLine, onReply, onDeleted, repostedBy }: PostCardProps) {
   const router = useRouter();
   const [quoting, setQuoting] = useState(false);
+  const [peopleKind, setPeopleKind] = useState<"likes" | "reposts" | null>(null);
   const pending = isPendingPost(post.id);
   const detail = variant === "detail";
   const goTicker = onTicker ?? ((t: string) => router.push(`/square/${t}`));
@@ -239,14 +241,22 @@ export function PostCard({ post, onTicker, variant = "feed", threadLine, onReply
           {post.createdAt ? fullTimestamp(post.createdAt) : post.time}
         </p>
 
-        <div className="mt-3 flex gap-5 border-y py-3 text-sm">
-          <Stat value={post.replies} label="Replies" />
-          <Stat value={post.reposts} label="Reposts" />
-          <Stat value={post.likes} label="Likes" />
+        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-y py-3 text-sm">
+          <Stat value={post.replies} label={post.replies === 1 ? "Reply" : "Replies"} />
+          <Stat value={post.reposts} label={post.reposts === 1 ? "Repost" : "Reposts"} onOpen={() => setPeopleKind("reposts")} />
+          <Stat value={post.likes} label={post.likes === 1 ? "Like" : "Likes"} onOpen={() => setPeopleKind("likes")} />
+          <Stat value={post.bookmarks ?? 0} label={(post.bookmarks ?? 0) === 1 ? "Bookmark" : "Bookmarks"} />
         </div>
 
-        <PostActions post={post} onReply={onReply} onQuote={() => setQuoting(true)} className="justify-around py-1" />
+        <PostActions
+          post={post}
+          onReply={onReply}
+          onQuote={() => setQuoting(true)}
+          onPeople={setPeopleKind}
+          className="justify-around py-1"
+        />
         <QuoteComposer post={post} open={quoting} onOpenChange={setQuoting} />
+        <PeopleDialog postId={post.id} kind={peopleKind} onClose={() => setPeopleKind(null)} />
       </article>
     );
   }
@@ -297,19 +307,87 @@ export function PostCard({ post, onTicker, variant = "feed", threadLine, onReply
           post={post}
           onReply={onReply ?? (() => router.push(`${postPath(post.id)}?reply=1`))}
           onQuote={() => setQuoting(true)}
+          onPeople={setPeopleKind}
           className="-ml-2 mt-2 max-w-md justify-between"
         />
         <QuoteComposer post={post} open={quoting} onOpenChange={setQuoting} />
+        <PeopleDialog postId={post.id} kind={peopleKind} onClose={() => setPeopleKind(null)} />
       </div>
     </article>
   );
 }
 
-function Stat({ value, label }: { value: number; label: string }) {
-  return (
-    <span className="text-muted-foreground">
+function Stat({ value, label, onOpen }: { value: number; label: string; onOpen?: () => void }) {
+  const text = (
+    <>
       <span className="font-mono font-bold tabular-nums text-foreground">{compact(value)}</span> {label}
-    </span>
+    </>
+  );
+  if (!onOpen || value === 0) return <span className="text-muted-foreground">{text}</span>;
+  return (
+    <button type="button" onClick={onOpen} className="text-muted-foreground hover:underline">
+      {text}
+    </button>
+  );
+}
+
+function PeopleDialog({
+  postId,
+  kind,
+  onClose,
+}: {
+  postId: string;
+  kind: "likes" | "reposts" | null;
+  onClose: () => void;
+}) {
+  const { token } = useSquare();
+  const [people, setPeople] = useState<Author[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!kind || !token) return;
+    let cancelled = false;
+    setPeople(null);
+    setError(null);
+    fetchEngagement(token, postId, kind)
+      .then((rows) => {
+        if (!cancelled) setPeople(rows);
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setError(err.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [kind, postId, token]);
+
+  return (
+    <Dialog open={!!kind} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[80vh] overflow-y-auto p-0 sm:max-w-md">
+        <DialogHeader className="px-4 pt-4">
+          <DialogTitle>{kind === "reposts" ? "Reposts" : "Likes"}</DialogTitle>
+        </DialogHeader>
+        {error ? (
+          <p className="px-4 py-6 text-sm text-muted-foreground">{error}</p>
+        ) : !people ? (
+          <div className="space-y-3 px-4 py-4" aria-hidden="true">
+            {Array.from({ length: 3 }, (_, index) => (
+              <div key={index} className="h-12 animate-pulse rounded-xl bg-card" />
+            ))}
+          </div>
+        ) : people.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-muted-foreground">No one here yet.</p>
+        ) : (
+          <ul>
+            {people.map((person) => (
+              <li key={person.id ?? person.handle}>
+                <UserRow author={person} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -327,11 +405,13 @@ function PostActions({
   post,
   onReply,
   onQuote,
+  onPeople,
   className,
 }: {
   post: Post;
   onReply?: () => void;
   onQuote?: () => void;
+  onPeople?: (kind: "likes" | "reposts") => void;
   className?: string;
 }) {
   const { toggleLike, toggleRepost, toggleBookmark } = useSquare();
@@ -365,6 +445,7 @@ function PostActions({
         activeClass="text-primary"
         hover="primary"
         onClick={() => toggleRepost(post.id)}
+        onCount={post.reposts > 0 ? () => onPeople?.("reposts") : undefined}
       />
       <Action
         icon={
@@ -382,6 +463,7 @@ function PostActions({
         activeClass="text-bear"
         hover="bear"
         onClick={() => toggleLike(post.id)}
+        onCount={post.likes > 0 ? () => onPeople?.("likes") : undefined}
       />
       <Action
         icon={
@@ -394,6 +476,7 @@ function PostActions({
           </motion.div>
         }
         label="Bookmark"
+        count={post.bookmarks ?? 0}
         active={saved}
         activeClass="text-primary"
         hover="primary"
@@ -423,6 +506,7 @@ function Action({
   activeClass,
   hover,
   onClick,
+  onCount,
 }: {
   icon: ReactNode;
   label: string;
@@ -431,34 +515,50 @@ function Action({
   activeClass?: string;
   hover: "primary" | "bear";
   onClick?: () => void;
+  onCount?: () => void;
 }) {
   return (
-    <motion.button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick?.();
-      }}
-      aria-label={count !== undefined ? `${label} (${count})` : label}
-      aria-pressed={active !== undefined ? !!active : undefined}
-      whileTap={{ scale: 0.96 }}
-      transition={{ type: "spring", duration: 0.2 }}
-      className={cn(
-        "group/action flex min-h-9 items-center gap-1 rounded-full px-2 font-mono text-xs transition-colors",
-        hover === "primary" ? "hover:text-primary" : "hover:text-bear",
-        active && activeClass,
-      )}
-    >
-      <span
+    <div className={cn("flex items-center", active && activeClass)}>
+      <motion.button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClick?.();
+        }}
+        aria-label={count !== undefined ? `${label} (${count})` : label}
+        aria-pressed={active !== undefined ? !!active : undefined}
+        whileTap={{ scale: 0.96 }}
+        transition={{ type: "spring", duration: 0.2 }}
         className={cn(
-          "grid size-8 place-items-center rounded-full transition-all duration-300 ease-out",
-          hover === "primary" ? "group-hover/action:bg-primary/10" : "group-hover/action:bg-bear/10",
+          "group/action flex min-h-9 items-center gap-1 rounded-full px-2 font-mono text-xs transition-colors",
+          hover === "primary" ? "hover:text-primary" : "hover:text-bear",
+          active && activeClass,
         )}
       >
-        {icon}
-      </span>
-      {count !== undefined && <span className="tabular-nums">{compact(count)}</span>}
-    </motion.button>
+        <span
+          className={cn(
+            "grid size-8 place-items-center rounded-full transition-all duration-300 ease-out",
+            hover === "primary" ? "group-hover/action:bg-primary/10" : "group-hover/action:bg-bear/10",
+          )}
+        >
+          {icon}
+        </span>
+        {count !== undefined && !onCount && <span className="tabular-nums">{compact(count)}</span>}
+      </motion.button>
+      {onCount && count !== undefined && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onCount();
+          }}
+          aria-label={`See who ${label === "Like" ? "liked" : "reposted"} this`}
+          className="min-h-9 rounded-full px-1 font-mono text-xs tabular-nums hover:underline"
+        >
+          {compact(count)}
+        </button>
+      )}
+    </div>
   );
 }
 

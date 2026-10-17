@@ -2,6 +2,8 @@ import { Router, Response } from "express";
 import { NotificationType, Prisma, Stance } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { listPosts, listReposts, pageSize, pollInclude, postInclude, toPollDto, toPostDto } from "../lib/post";
+import { publishDueDrafts } from "../lib/drafts";
+import { toAuthorDto, AUTHOR_SELECT } from "../lib/author";
 import { notify, unnotify } from "../lib/notify";
 import { authenticateJwt, AuthenticatedRequest } from "../middleware/auth";
 import { InteractionError, assertCanInteract, blockedAuthorIds, hiddenAuthorIds } from "../lib/visibility";
@@ -70,6 +72,8 @@ postsRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<v
     if (feed === "following") {
       where.OR = [{ authorId: userId }, { author: { followers: { some: { followerId: userId } } } }];
     }
+
+    await publishDueDrafts().catch((error) => console.error("Scheduled posts", error));
 
     const hidden = await hiddenAuthorIds(userId);
     const visible = hidden.length ? { AND: [where, { authorId: { notIn: hidden } }] } : where;
@@ -234,6 +238,59 @@ postsRouter.get("/:id/replies", async (req: AuthenticatedRequest<{ id: string }>
     );
   } catch (error) {
     console.error("List replies error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+async function listEngagement(kind: "like" | "repost", postId: string, viewerId: string) {
+  const post = await prisma.post.findUnique({ where: { id: postId }, select: { authorId: true } });
+  if (!post || (await blockedAuthorIds(viewerId)).includes(post.authorId)) return null;
+
+  const hidden = await hiddenAuthorIds(viewerId);
+  const where = { postId, ...(hidden.length ? { userId: { notIn: hidden } } : {}) };
+  const rows =
+    kind === "like"
+      ? await prisma.like.findMany({
+          where,
+          orderBy: { createdAt: "desc" },
+          take: 100,
+          include: { user: { select: AUTHOR_SELECT } },
+        })
+      : await prisma.repost.findMany({
+          where,
+          orderBy: { createdAt: "desc" },
+          take: 100,
+          include: { user: { select: AUTHOR_SELECT } },
+        });
+  return rows.map((row) => toAuthorDto(row.user));
+}
+
+// GET /api/posts/:id/likes — people who liked this post
+postsRouter.get("/:id/likes", async (req: AuthenticatedRequest<{ id: string }>, res: Response): Promise<void> => {
+  try {
+    const users = await listEngagement("like", req.params.id, req.userId!);
+    if (!users) {
+      res.status(404).json({ error: "Post not found" });
+      return;
+    }
+    res.status(200).json({ users });
+  } catch (error) {
+    console.error("List likes error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /api/posts/:id/reposts — people who reposted this post
+postsRouter.get("/:id/reposts", async (req: AuthenticatedRequest<{ id: string }>, res: Response): Promise<void> => {
+  try {
+    const users = await listEngagement("repost", req.params.id, req.userId!);
+    if (!users) {
+      res.status(404).json({ error: "Post not found" });
+      return;
+    }
+    res.status(200).json({ users });
+  } catch (error) {
+    console.error("List reposts error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });

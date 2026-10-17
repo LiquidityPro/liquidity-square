@@ -103,7 +103,7 @@ function without<T>(record: Record<string, T>, keys: string[]): Record<string, T
 const REACTION_FIELDS = {
   like: { flag: "likedByMe", count: "likes" },
   repost: { flag: "repostedByMe", count: "reposts" },
-  bookmark: { flag: "bookmarkedByMe", count: null },
+  bookmark: { flag: "bookmarkedByMe", count: "bookmarks" },
 } as const satisfies Record<Reaction, { flag: keyof Post; count: keyof Post | null }>;
 
 export function SquareProvider({ children }: { children: ReactNode }) {
@@ -347,6 +347,7 @@ export function SquareProvider({ children }: { children: ReactNode }) {
         replies: 0,
         reposts: 0,
         likes: 0,
+        bookmarks: 0,
         parentId,
         replyTo: parentId ? (postsRef.current[parentId]?.author ?? null) : null,
         quote: quoted
@@ -430,8 +431,9 @@ export function SquareProvider({ children }: { children: ReactNode }) {
       const was = !!post[flag];
       const apply = (active: boolean, n?: number) =>
         patchPost(postId, { [flag]: active, ...(count && n !== undefined ? { [count]: n } : {}) });
+      const current = count ? Number(post[count] ?? 0) : 0;
 
-      apply(!was, count ? post[count] + (was ? -1 : 1) : undefined);
+      apply(!was, count ? current + (was ? -1 : 1) : undefined);
 
       try {
         const result = await setReaction(token, postId, kind, !was);

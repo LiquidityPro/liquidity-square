@@ -48,6 +48,7 @@ type PostDto = {
   likes: number;
   reposts: number;
   replies: number;
+  bookmarks?: number;
   likedByMe: boolean;
   repostedByMe: boolean;
   bookmarkedByMe: boolean;
@@ -146,6 +147,7 @@ function toPost(dto: PostDto): Post {
     replies: dto.replies,
     reposts: dto.reposts,
     likes: dto.likes,
+    bookmarks: dto.bookmarks ?? 0,
     likedByMe: dto.likedByMe,
     repostedByMe: dto.repostedByMe,
     bookmarkedByMe: dto.bookmarkedByMe,
@@ -228,6 +230,61 @@ export async function voteOnPoll(token: string, postId: string, optionId: string
 
 export async function deletePost(token: string, id: string): Promise<void> {
   await request(`/posts/${encodeURIComponent(id)}`, token, "DELETE");
+}
+
+export async function fetchEngagement(token: string, postId: string, kind: "likes" | "reposts"): Promise<Author[]> {
+  const { users } = await request<{ users: AuthorDto[] }>(`/posts/${encodeURIComponent(postId)}/${kind}`, token);
+  return users.map(toAuthor);
+}
+
+export type SavedDraft = {
+  id: string;
+  body: string;
+  stance: Stance;
+  poll: PollDraft | null;
+  scheduledFor: string | null;
+  updatedAt: string;
+};
+
+type DraftDto = {
+  id: string;
+  body: string;
+  stance: Stance;
+  poll: PollDraft | null;
+  scheduledFor: string | null;
+  updatedAt: string;
+};
+
+function toSavedDraft(dto: DraftDto): SavedDraft {
+  const poll =
+    dto.poll && Array.isArray(dto.poll.options) && dto.poll.options.length >= 2
+      ? { options: dto.poll.options.map((option) => ({ label: option.label, stance: option.stance ?? null })) }
+      : null;
+  return { ...dto, stance: dto.stance ?? null, poll };
+}
+
+export async function fetchDrafts(token: string): Promise<SavedDraft[]> {
+  const { drafts } = await request<{ drafts: DraftDto[] }>("/drafts", token);
+  return drafts.map(toSavedDraft);
+}
+
+export async function saveDraft(
+  token: string,
+  draft: { id?: string | null; body: string; stance: Stance; poll?: PollDraft | null; scheduledFor?: string | null },
+): Promise<SavedDraft> {
+  const payload = {
+    body: draft.body,
+    stance: draft.stance,
+    poll: draft.poll ?? null,
+    scheduledFor: draft.scheduledFor ?? null,
+  };
+  const path = draft.id ? `/drafts/${encodeURIComponent(draft.id)}` : "/drafts";
+  const { draft: saved } = await request<{ draft: DraftDto }>(path, token, draft.id ? "PUT" : "POST", payload);
+  return toSavedDraft(saved);
+}
+
+export async function deleteDraft(token: string, id: string): Promise<void> {
+  await request(`/drafts/${encodeURIComponent(id)}`, token, "DELETE");
 }
 
 export function setReaction(token: string, postId: string, kind: Reaction, on: boolean) {

@@ -19,7 +19,6 @@ import { usePostList } from "@/components/square/use-post-list";
 import { useMarketTape } from "@/components/square/use-market-tape";
 import { WeekStrip } from "@/components/square/week-strip";
 import {
-  formatChange,
   formatCount,
   formatMove,
   formatNaira,
@@ -30,6 +29,7 @@ import {
   sectorPath,
 } from "@/lib/market/quotes";
 import { cn } from "@/lib/utils";
+import { PriceChange } from "@/components/square/price-change";
 
 type WindowId = "session" | "week" | "month";
 const WINDOWS: { id: WindowId; label: string }[] = [
@@ -104,6 +104,7 @@ export default function TickerRoom() {
   const rawSector = quote?.sector || detail?.sector;
   const sector = rawSector ? formatSector(rawSector) : "NGX";
   const postCount = detail ? detail.postCount : list.loading || list.error ? null : list.posts.length;
+  const logo = tickerLogo(ticker);
   const up = (quote?.changePct ?? 0) > 0;
   const down = (quote?.changePct ?? 0) < 0;
   const tone = up ? "text-primary" : down ? "text-bear" : "text-muted-foreground";
@@ -126,8 +127,8 @@ export default function TickerRoom() {
   return (
     <>
       <PageHeader
-        title={`$${ticker}`}
-        subtitle={company ?? undefined}
+        title={company ?? `$${ticker}`}
+        subtitle={company ? `$${ticker}` : undefined}
         back
         action={
           <button
@@ -148,20 +149,28 @@ export default function TickerRoom() {
       />
 
       <section className="border-b px-4 py-5" aria-label={`${ticker} quote`}>
+        <link rel="preload" as="image" href={logo.webp} type="image/webp" />
         {quote ? (
           <div className="flex items-end justify-between gap-4">
             <div className="min-w-0">
-              {rawSector ? (
-                <Link href={sectorPath(rawSector)} className="text-xs font-medium tracking-wide text-muted-foreground hover:underline">
-                  {sector}
-                </Link>
-              ) : (
-                <p className="text-xs font-medium tracking-wide text-muted-foreground">{sector}</p>
-              )}
+              <div className="flex items-center gap-2">
+                <TickerLogo symbol={ticker} storedUrl={detail?.logoUrl} />
+                <div className="min-w-0">
+                  {rawSector ? (
+                    <Link href={sectorPath(rawSector)} className="text-xs font-medium tracking-wide text-muted-foreground hover:underline">
+                      {detail?.subSector ? `${sector} · ${detail.subSector}` : sector}
+                    </Link>
+                  ) : (
+                    <p className="text-xs font-medium tracking-wide text-muted-foreground">{sector}</p>
+                  )}
+                </div>
+              </div>
               <p className="mt-2 font-mono text-4xl font-semibold tracking-tight">₦{formatNaira(quote.price)}</p>
             </div>
             <div className="shrink-0 text-right">
-              <p className={cn("font-mono text-lg font-semibold", tone)}>{formatChange(quote.changePct)}</p>
+              <p className="font-mono text-lg font-semibold">
+                <PriceChange changePct={quote.changePct} />
+              </p>
               {quote.changePct !== 0 && (
                 <p className={cn("mt-0.5 font-mono text-sm", tone)}>{formatMove(moveNaira(quote.price, quote.changePct))}</p>
               )}
@@ -169,7 +178,10 @@ export default function TickerRoom() {
           </div>
         ) : (
           <div>
-            <p className="text-xs font-medium tracking-wide text-muted-foreground">{sector}</p>
+            <div className="flex items-center gap-2">
+              <TickerLogo symbol={ticker} storedUrl={detail?.logoUrl} />
+              <p className="text-xs font-medium tracking-wide text-muted-foreground">{sector}</p>
+            </div>
             {tapePending ? (
               <div className="mt-3 h-10 w-40 animate-pulse rounded-md bg-card" aria-hidden="true" />
             ) : (
@@ -180,6 +192,24 @@ export default function TickerRoom() {
             {tapePending && <p className="sr-only">Loading the session price</p>}
           </div>
         )}
+
+        {(company || detail?.about || detail?.natureOfBusiness) && (
+          <div className="mt-4 max-w-xl space-y-1">
+            {company && (
+              <p className="text-sm text-muted-foreground">
+                ${ticker} is the stock symbol for {company}.
+              </p>
+            )}
+            {detail?.industry && <p className="text-sm leading-relaxed">{detail.industry}</p>}
+            {detail?.about && <p className="text-sm leading-relaxed">{detail.about}</p>}
+            {detail?.natureOfBusiness &&
+              detail.natureOfBusiness.toLowerCase() !== detail.about?.toLowerCase() && (
+                <p className="text-sm text-muted-foreground">{detail.natureOfBusiness}</p>
+              )}
+          </div>
+        )}
+
+        <CompanyFacts detail={detail} />
 
         {quote && <SessionStats quote={quote} />}
 
@@ -232,6 +262,7 @@ export default function TickerRoom() {
 
       <Composer
         key={ticker}
+        persistDrafts
         onPost={(body, stance, extras) => publish(body, stance, null, extras)}
         initialValue={`$${ticker} `}
         placeholder={`What's your read on $${ticker}?`}
@@ -242,6 +273,78 @@ export default function TickerRoom() {
         empty={<EmptyState title="Quiet on the floor" body={`Be the first to share a read on $${ticker}.`} />}
       />
     </>
+  );
+}
+
+function tickerLogo(symbol: string) {
+  return {
+    webp: `https://cdn.jsdelivr.net/gh/ngnmarket/ngx-logos/dist/webp/${symbol}.webp`,
+    png: `https://cdn.jsdelivr.net/gh/ngnmarket/ngx-logos/dist/png/${symbol}.png`,
+  };
+}
+
+function TickerLogo({ symbol, storedUrl }: { symbol: string; storedUrl?: string | null }) {
+  const { webp, png } = tickerLogo(symbol);
+  const [stage, setStage] = useState<"webp" | "png" | "stored" | "none">("webp");
+
+  useEffect(() => {
+    setStage("webp");
+  }, [symbol]);
+
+  const src = stage === "webp" ? webp : stage === "png" ? png : stage === "stored" ? storedUrl : null;
+  if (!src) return null;
+
+  return (
+    <img
+      src={src}
+      alt=""
+      width={32}
+      height={32}
+      className="size-8 shrink-0 rounded-md bg-card object-contain"
+      onError={() =>
+        setStage((current) => {
+          if (current === "webp") return "png";
+          if (current === "png" && storedUrl && storedUrl !== webp && storedUrl !== png) return "stored";
+          return "none";
+        })
+      }
+    />
+  );
+}
+
+function CompanyFacts({ detail }: { detail: TickerDetail | null }) {
+  if (!detail) return null;
+  const facts = [
+    detail.ceo ? ["CEO", detail.ceo] : null,
+    detail.foundedYear ? ["Founded", String(detail.foundedYear)] : null,
+    detail.employees ? ["Employees", detail.employees.toLocaleString("en-NG")] : null,
+    detail.country ? ["Country", detail.country] : null,
+    detail.fiscalYear ? ["Fiscal year", detail.fiscalYear] : null,
+    detail.reportingCurrency ? ["Reporting currency", detail.reportingCurrency] : null,
+    detail.sicCode ? ["SIC", detail.sicCode] : null,
+    detail.phone ? ["Phone", detail.phone] : null,
+    detail.address ? ["Address", detail.address] : null,
+  ].filter((row): row is [string, string] => !!row);
+  if (facts.length === 0 && !detail.executives && !detail.website) return null;
+  return (
+    <div className="mt-4 max-w-xl space-y-2 text-sm">
+      {facts.length > 0 && (
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+          {facts.map(([label, value]) => (
+            <div key={label} className="contents">
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {detail.executives && <p className="text-muted-foreground">{detail.executives}</p>}
+      {detail.website && (
+        <a href={detail.website.startsWith("http") ? detail.website : `https://${detail.website}`} className="text-primary hover:underline">
+          {detail.website.replace(/^https?:\/\//, "")}
+        </a>
+      )}
+    </div>
   );
 }
 

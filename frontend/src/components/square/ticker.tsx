@@ -1,9 +1,9 @@
 "use client";
 
 import { LuX as X } from "react-icons/lu";
-import { cn } from "@/lib/utils";
 import type { TapeQuote } from "@/lib/market/tape";
-import { formatChange, formatNaira, formatSession } from "@/lib/market/quotes";
+import { formatNaira, formatSession } from "@/lib/market/quotes";
+import { PriceChange, QuoteLogo } from "./price-change";
 import { useMarketTape } from "./use-market-tape";
 
 export function TickerChip({ ticker, onClear }: { ticker: string; onClear: () => void }) {
@@ -98,11 +98,10 @@ function TapeRow({ quotes }: { quotes: TapeQuote[] }) {
         <div key={copyIndex} className="flex gap-8 pr-8">
           {quotes.map((item) => (
             <span key={`${copyIndex}-${item.symbol}`} className="flex items-center gap-2.5 px-2 py-0.5">
+              <QuoteLogo symbol={item.symbol} />
               <span className="font-bold opacity-90">${item.symbol}</span>
               <span className="font-medium opacity-75">₦{formatNaira(item.price)}</span>
-              <span className={cn("font-bold", item.changePct >= 0 ? "text-primary" : "text-bear")}>
-                {formatChange(item.changePct)}
-              </span>
+              <PriceChange changePct={item.changePct} />
             </span>
           ))}
         </div>

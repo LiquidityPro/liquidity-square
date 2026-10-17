@@ -63,40 +63,46 @@ function PostThread() {
   }
 
   return (
-    <>
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader title="Post" back />
 
-      {status === "loading" && !post ? (
-        <PostSkeleton count={1} />
-      ) : !post ? (
-        <EmptyState
-          title={status === "missing" || status === "ready" ? "This post is gone" : "Couldn't load this post"}
-          body={status === "error" ? error : "It may have been deleted by its author."}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {status === "loading" && !post ? (
+          <PostSkeleton count={1} />
+        ) : !post ? (
+          <EmptyState
+            title={status === "missing" || status === "ready" ? "This post is gone" : "Couldn't load this post"}
+            body={status === "error" ? error : "It may have been deleted by its author."}
+          />
+        ) : (
+          <>
+            {parent && <PostCard post={parent} threadLine />}
+            <PostCard
+              post={post}
+              variant="detail"
+              onReply={focusReply}
+              onDeleted={() => (parent ? router.replace(`/square/post/${parent.id}`) : router.replace("/square"))}
+            />
+            <PostFeed
+              list={replies}
+              endLabel="End of the thread"
+              empty={<EmptyState title="No replies yet" body="Start the conversation." />}
+            />
+          </>
+        )}
+      </div>
+
+      {post && (
+        <Composer
+          key={id}
+          docked
+          allowPoll={false}
+          onPost={(body, stance) => publish(body, stance, id)}
+          placeholder={`Reply to @${post.author.handle}`}
+          submitLabel="Reply"
+          autoFocus={wantsReply}
         />
-      ) : (
-        <>
-          {parent && <PostCard post={parent} threadLine />}
-          <PostCard
-            post={post}
-            variant="detail"
-            onReply={focusReply}
-            onDeleted={() => (parent ? router.replace(`/square/post/${parent.id}`) : router.replace("/square"))}
-          />
-          <Composer
-            key={id}
-            allowPoll={false}
-            onPost={(body, stance) => publish(body, stance, id)}
-            placeholder={`Reply to @${post.author.handle}`}
-            submitLabel="Reply"
-            autoFocus={wantsReply}
-          />
-          <PostFeed
-            list={replies}
-            endLabel="End of the thread"
-            empty={<EmptyState title="No replies yet" body="Start the conversation." />}
-          />
-        </>
       )}
-    </>
+    </div>
   );
 }
