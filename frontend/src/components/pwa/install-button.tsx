@@ -9,11 +9,29 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
+const INSTALLED_KEY = "lq-app-installed";
+
 type InstallState = {
   prompt: BeforeInstallPromptEvent | null;
   installed: boolean;
   ios: boolean;
 };
+
+function rememberInstalled() {
+  try {
+    localStorage.setItem(INSTALLED_KEY, "1");
+  } catch {
+    // Private mode can block storage. The standalone check still applies this visit.
+  }
+}
+
+function rememberedInstalled() {
+  try {
+    return localStorage.getItem(INSTALLED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 let state: InstallState = { prompt: null, installed: false, ios: false };
 const listeners = new Set<() => void>();
@@ -37,17 +55,37 @@ function ensureListening() {
     window.matchMedia("(display-mode: standalone)").matches ||
     ("standalone" in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  state = { ...state, installed: standalone, ios: ios && !standalone };
+  if (standalone) rememberInstalled();
+  state = { ...state, installed: standalone || rememberedInstalled(), ios: ios && !standalone };
 
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
+    if (state.installed) return;
     state = { ...state, prompt: event as BeforeInstallPromptEvent };
     emit();
   });
   window.addEventListener("appinstalled", () => {
+    rememberInstalled();
     state = { ...state, prompt: null, installed: true };
     emit();
   });
+
+  const related = navigator as Navigator & {
+    getInstalledRelatedApps?: () => Promise<{ platform: string }[]>;
+  };
+  if (typeof related.getInstalledRelatedApps === "function") {
+    related
+      .getInstalledRelatedApps()
+      .then((apps) => {
+        const installed = apps.some((app) => app.platform === "webapp");
+        if (installed) rememberInstalled();
+        else if (!standalone) localStorage.removeItem(INSTALLED_KEY);
+        const hasApp = installed || standalone;
+        state = { ...state, installed: hasApp, prompt: hasApp ? null : state.prompt };
+        emit();
+      })
+      .catch(() => undefined);
+  }
 }
 
 function getSnapshot() {
@@ -56,8 +94,22 @@ function getSnapshot() {
 
 const SERVER_SNAPSHOT: InstallState = { prompt: null, installed: false, ios: false };
 
+export function useInstallState() {
+  return useSyncExternalStore(subscribe, getSnapshot, () => SERVER_SNAPSHOT);
+}
+
+export async function runInstallPrompt() {
+  const prompt = state.prompt;
+  if (!prompt) return "unavailable" as const;
+  state = { ...state, prompt: null };
+  emit();
+  await prompt.prompt();
+  const choice = await prompt.userChoice;
+  return choice.outcome;
+}
+
 export function InstallAppButton({ variant = "nav" }: { variant?: "nav" | "menu" | "quiet" }) {
-  const installState = useSyncExternalStore(subscribe, getSnapshot, () => SERVER_SNAPSHOT);
+  const installState = useInstallState();
   const [hint, setHint] = useState(false);
   const visible = !installState.installed && (installState.prompt !== null || installState.ios);
 

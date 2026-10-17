@@ -11,6 +11,14 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [{ source: "/api/server/:path*", destination: `${BACKEND_URL}/api/:path*` }];
   },
+  async headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

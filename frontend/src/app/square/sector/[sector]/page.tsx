@@ -9,8 +9,8 @@ import { fetchPosts, fetchSentiment } from "@/components/square/api";
 import type { Post } from "@/components/square/data";
 import { usePostList } from "@/components/square/use-post-list";
 import { useMarketTape } from "@/components/square/use-market-tape";
-import { formatChange, formatSector, topMovers } from "@/lib/market/quotes";
-import { cn } from "@/lib/utils";
+import { formatSector, topMovers } from "@/lib/market/quotes";
+import { PriceChange } from "@/components/square/price-change";
 
 export default function SectorRoom() {
   const params = useParams();
@@ -88,9 +88,7 @@ export default function SectorRoom() {
               <li key={quote.symbol}>
                 <Link href={`/square/${quote.symbol}`} className="flex items-center justify-between px-3 py-2 hover:bg-card/60">
                   <span className="font-mono font-semibold">${quote.symbol}</span>
-                  <span className={cn("font-mono text-sm", quote.changePct >= 0 ? "text-primary" : "text-bear")}>
-                    {formatChange(quote.changePct)}
-                  </span>
+                  <PriceChange changePct={quote.changePct} className="font-mono text-sm" />
                 </Link>
               </li>
             ))}
@@ -98,6 +96,7 @@ export default function SectorRoom() {
         )}
       </section>
       <Composer
+        persistDrafts
         onPost={(body, stance, extras) => publish(body, stance, null, extras)}
         placeholder={`What's your read on ${label}?`}
       />

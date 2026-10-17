@@ -31,7 +31,7 @@ export function formatNaira(price: number) {
 }
 
 export function formatChange(changePct: number) {
-  return `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`;
+  return `${Math.abs(changePct).toFixed(2)}%`;
 }
 
 /** Naira move implied by the session percent, from the previous close. */
@@ -44,12 +44,33 @@ export function moveNaira(price: number, changePct: number): number {
 
 export function formatMove(amount: number) {
   if (!Number.isFinite(amount) || amount === 0) return `₦${formatNaira(0)}`;
-  const sign = amount > 0 ? "+" : "-";
-  return `${sign}₦${formatNaira(Math.abs(amount))}`;
+  return `₦${formatNaira(Math.abs(amount))}`;
+}
+
+export function mostTradedByValue(quotes: TapeQuote[], limit = 10) {
+  return [...quotes]
+    .filter((quote) => (quote.value ?? 0) > 0)
+    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0) || a.symbol.localeCompare(b.symbol))
+    .slice(0, limit);
 }
 
 export function formatCount(value: number) {
   return value.toLocaleString("en-NG", { maximumFractionDigits: 0 });
+}
+
+/** 514886 → 515k, 1813384 → 1.8m. */
+export function formatCompactCount(value: number) {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (abs >= 1_000_000_000) return `${sign}${trimScale(abs / 1_000_000_000)}b`;
+  if (abs >= 1_000_000) return `${sign}${trimScale(abs / 1_000_000)}m`;
+  if (abs >= 1_000) return `${sign}${Math.round(abs / 1_000)}k`;
+  return formatCount(value);
+}
+
+function trimScale(value: number) {
+  const rounded = value >= 10 ? Math.round(value) : Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }
 
 export function formatTurnover(value: number) {

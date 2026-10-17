@@ -1,16 +1,20 @@
 "use client";
 
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { LuChartColumn as ChartColumn, LuTrendingDown as TrendingDown, LuTrendingUp as TrendingUp } from "react-icons/lu";
+import { LuChartColumn as ChartColumn, LuClock as Clock, LuFileText as FileText, LuTrendingDown as TrendingDown, LuTrendingUp as TrendingUp } from "react-icons/lu";
+import { toast } from "sonner";
 import { Avatar } from "./avatar";
 import { cn } from "@/lib/utils";
 import { type Author, type QuotedPost, type Stance, type TickerSummary } from "./data";
-import type { PollDraft } from "./api";
+import { deleteDraft, fetchDrafts, saveDraft, type PollDraft, type SavedDraft } from "./api";
 import { useCurrentAuthor } from "./use-current-author";
 import { useSquare } from "./context";
 import { fetchSuggested, fetchTickers, search } from "./api";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DraftList, takeRememberedDraft } from "./drafts";
 import { useMarketTape } from "./use-market-tape";
-import { formatChange, formatNaira } from "@/lib/market/quotes";
+import { formatNaira } from "@/lib/market/quotes";
+import { PriceChange } from "./price-change";
 import type { TapeQuote } from "@/lib/market/tape";
 
 /* Composer                                                            */
@@ -50,6 +54,12 @@ type ComposerProps = {
   allowPoll?: boolean;
   quoted?: QuotedPost | null;
   fieldId?: string;
+  /** Keep unsent text as a draft, and allow scheduling. */
+  persistDrafts?: boolean;
+  /** Put the latest unsent draft back in the field. */
+  restoreDraft?: boolean;
+  /** Pin the composer to the bottom of a locked column. */
+  docked?: boolean;
 };
 
 export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
@@ -63,6 +73,9 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
       allowPoll = true,
       quoted,
       fieldId = "square-composer",
+      persistDrafts = false,
+      restoreDraft = false,
+      docked = false,
     },
     ref,
   ) {
@@ -90,6 +103,15 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
     const [listed, setListed] = useState<TickerSummary[]>([]);
     const [listedLoading, setListedLoading] = useState(false);
     const [closedKey, setClosedKey] = useState<string | null>(null);
+    const [scheduleOpen, setScheduleOpen] = useState(false);
+    const [scheduleAt, setScheduleAt] = useState("");
+    const [draftsOpen, setDraftsOpen] = useState(false);
+    const [savingDraft, setSavingDraft] = useState(false);
+    const draftIdRef = useRef<string | null>(null);
+    const detachRef = useRef(false);
+    const saveGen = useRef(0);
+    const bodyRef = useRef(body);
+    bodyRef.current = body;
     const left = LIMIT - body.length;
     const pollReady =
       !pollOn ||
@@ -101,6 +123,97 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
     const canPost = body.trim().length > 0 && left >= 0 && pollReady;
     const pct = Math.min(body.length / LIMIT, 1);
     const tokenAtCaret = activeToken(body, caret);
+
+    function pollPayload(): PollDraft | null {
+      if (!pollOn) return null;
+      return { options: pollOptions.map((option) => ({ label: option.label.trim(), stance: option.stance })) };
+    }
+
+    function scheduledIso() {
+      if (!scheduleAt) return null;
+      const when = new Date(scheduleAt);
+      if (Number.isNaN(when.getTime())) return null;
+      const lead = when.getTime() - Date.now();
+      if (lead < 60_000 || lead > 1000 * 60 * 60 * 24 * 365) return null;
+      return when.toISOString();
+    }
+
+    function loadDraft(draft: SavedDraft) {
+      detachRef.current = false;
+      draftIdRef.current = draft.id;
+      setBody(draft.body);
+      setStance(draft.stance);
+      setPollOn(!!draft.poll);
+      setPollOptions(
+        draft.poll
+          ? draft.poll.options.map((option) => ({ label: option.label, stance: option.stance === "bear" ? "bear" : "bull" }))
+          : EMPTY_POLL,
+      );
+      if (draft.scheduledFor) {
+        setScheduleOpen(true);
+        setScheduleAt(toLocalInput(new Date(draft.scheduledFor)));
+      } else {
+        setScheduleOpen(false);
+        setScheduleAt("");
+      }
+      setDraftsOpen(false);
+    }
+
+    useEffect(() => {
+      if (!persistDrafts) return;
+      const remembered = restoreDraft ? takeRememberedDraft() : null;
+      if (remembered) {
+        loadDraft(remembered);
+        return;
+      }
+      if (!restoreDraft || !token) return;
+      let cancelled = false;
+      fetchDrafts(token)
+        .then((rows) => {
+          if (cancelled || detachRef.current || bodyRef.current.trim() !== initialValue.trim()) return;
+          const open = rows.find((row) => !row.scheduledFor);
+          if (open) loadDraft(open);
+        })
+        .catch((err) => console.error("Draft restore failed", err));
+      return () => {
+        cancelled = true;
+      };
+      // Restore once when the composer is ready to keep drafts.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [persistDrafts, restoreDraft, token]);
+
+    useEffect(() => {
+      if (!persistDrafts || !token) return;
+      if (detachRef.current) {
+        if (body.trim() === initialValue.trim()) return;
+        detachRef.current = false;
+      }
+      const timer = window.setTimeout(() => {
+        const generation = saveGen.current;
+        const text = body.trim();
+        const worthSaving = text.length > 0 && text !== initialValue.trim() && pollReady;
+        if (!worthSaving) {
+          if (draftIdRef.current) {
+            const id = draftIdRef.current;
+            draftIdRef.current = null;
+            void deleteDraft(token, id).catch(() => undefined);
+          }
+          return;
+        }
+        void saveDraft(token, {
+          id: draftIdRef.current,
+          body: text,
+          stance,
+          poll: pollPayload(),
+          scheduledFor: scheduledIso(),
+        })
+          .then((saved) => {
+            if (saveGen.current === generation && !detachRef.current) draftIdRef.current = saved.id;
+          })
+          .catch((err) => console.error("Draft save failed", err));
+      }, 800);
+      return () => window.clearTimeout(timer);
+    }, [persistDrafts, token, body, stance, pollOn, pollOptions, pollReady, initialValue, scheduleAt]);
 
     const quotes = snapshot?.quotes?.length ? snapshot.quotes : (fallbackQuotes ?? []);
 
@@ -252,20 +365,51 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
       return () => document.removeEventListener("selectionchange", sync);
     }, []);
 
-    function submit() {
-      if (!canPost) return;
-      onPost(
-        body.trim(),
-        stance,
-        pollOn
-          ? { poll: { options: pollOptions.map((option) => ({ label: option.label.trim(), stance: option.stance })) } }
-          : undefined,
-      );
+    function clearComposer() {
+      saveGen.current += 1;
+      detachRef.current = true;
+      draftIdRef.current = null;
       setBody(initialValue);
       setStance(null);
       setPollOn(false);
       setPollOptions(EMPTY_POLL);
       setCaret(initialValue.length);
+      setScheduleAt("");
+      setScheduleOpen(false);
+    }
+
+    function submit() {
+      if (!canPost) return;
+      const id = draftIdRef.current;
+      if (token && id) void deleteDraft(token, id).catch(() => undefined);
+      onPost(body.trim(), stance, pollOn ? { poll: pollPayload()! } : undefined);
+      clearComposer();
+    }
+
+    async function confirmSchedule() {
+      if (!canPost || !token) return;
+      const when = scheduledIso();
+      if (!when) {
+        toast.error("Pick a time at least a minute from now.");
+        return;
+      }
+      saveGen.current += 1;
+      setSavingDraft(true);
+      try {
+        await saveDraft(token, {
+          id: draftIdRef.current,
+          body: body.trim(),
+          stance,
+          poll: pollPayload(),
+          scheduledFor: when,
+        });
+        clearComposer();
+        toast.success("Scheduled. It will post on its own.");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't schedule that post");
+      } finally {
+        setSavingDraft(false);
+      }
     }
 
     function insertSuggestion(insertion: string) {
@@ -295,7 +439,8 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
     }
 
     return (
-      <div className="flex gap-3 border-b px-4 py-3">
+      <>
+      <div className={cn("flex gap-3 bg-background px-4 py-3", docked ? "shrink-0 border-t" : "border-b")}>
         <Avatar author={me} />
         <div className="min-w-0 flex-1">
           {quoted && (
@@ -397,6 +542,18 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
               )}
             </ul>
           )}
+          {scheduleOpen && (
+            <label className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Post at</span>
+              <input
+                type="datetime-local"
+                value={scheduleAt}
+                min={toLocalInput(new Date(Date.now() + 60_000))}
+                onChange={(event) => setScheduleAt(event.target.value)}
+                className="h-9 rounded-full border bg-transparent px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </label>
+          )}
           {pollOn && (
             <div className="mb-3 space-y-2">
               <p className="text-xs text-muted-foreground">Tag a ticker in the post so votes move that name's bar.</p>
@@ -472,6 +629,32 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
                   <ChartColumn className="size-[18px]" />
                 </button>
               )}
+              {persistDrafts && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Drafts"
+                    title="Drafts"
+                    onClick={() => setDraftsOpen(true)}
+                    className="grid size-9 place-items-center rounded-full text-primary hover:bg-primary/10"
+                  >
+                    <FileText className="size-[18px]" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={scheduleOpen}
+                    aria-label={scheduleOpen ? "Hide schedule" : "Schedule post"}
+                    title="Schedule"
+                    onClick={() => setScheduleOpen((open) => !open)}
+                    className={cn(
+                      "grid size-9 place-items-center rounded-full text-primary hover:bg-primary/10",
+                      scheduleOpen && "bg-primary/10",
+                    )}
+                  >
+                    <Clock className="size-[18px]" />
+                  </button>
+                </>
+              )}
             </div>
             <div className="flex items-center gap-3">
               {body.length > 0 && (
@@ -496,19 +679,38 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
               )}
               <button
                 type="button"
-                onClick={submit}
-                disabled={!canPost}
+                onClick={() => {
+                  if (scheduleAt) void confirmSchedule();
+                  else submit();
+                }}
+                disabled={!canPost || savingDraft || (!!scheduleAt && !scheduledIso())}
                 className="min-h-9 rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground transition hover:opacity-90 disabled:opacity-40 enabled:active:scale-[0.96]"
               >
-                {submitLabel}
+                {scheduleAt ? "Schedule" : submitLabel}
               </button>
             </div>
           </div>
         </div>
       </div>
+      {persistDrafts && (
+        <Dialog open={draftsOpen} onOpenChange={setDraftsOpen}>
+          <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Drafts</DialogTitle>
+            </DialogHeader>
+            <DraftList onEdit={loadDraft} />
+          </DialogContent>
+        </Dialog>
+      )}
+      </>
     );
   },
 );
+
+function toLocalInput(date: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
 function suggestionId(index: number) {
   return `composer-suggestion-${index}`;
@@ -541,11 +743,7 @@ function TickerOption({
         <span className="font-semibold">${quote.symbol}</span>
         <span className="min-w-0 flex-1 truncate text-muted-foreground">{detail}</span>
         {quote.price != null && <span className="font-mono text-xs">₦{formatNaira(quote.price)}</span>}
-        {quote.changePct != null && (
-          <span className={cn("font-mono text-xs", quote.changePct > 0 ? "text-primary" : quote.changePct < 0 ? "text-bear" : "text-muted-foreground")}>
-            {formatChange(quote.changePct)}
-          </span>
-        )}
+        {quote.changePct != null && <PriceChange changePct={quote.changePct} className="font-mono text-xs" />}
       </button>
     </li>
   );

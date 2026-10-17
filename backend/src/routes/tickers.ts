@@ -15,8 +15,48 @@ const TICKER_SELECT = {
   symbol: true,
   name: true,
   sector: true,
+  subSector: true,
+  marketClassification: true,
+  about: true,
+  natureOfBusiness: true,
+  website: true,
+  email: true,
+  phone: true,
+  address: true,
+  logoUrl: true,
+  internationalSecId: true,
+  sharesOutstanding: true,
+  dateListed: true,
+  dateIncorporated: true,
+  industry: true,
+  country: true,
+  foundedYear: true,
+  employees: true,
+  ceo: true,
+  executives: true,
+  listingExchange: true,
+  fiscalYear: true,
+  reportingCurrency: true,
+  sicCode: true,
   _count: { select: { posts: true } },
 } as const;
+
+function day(value: Date | null) {
+  return value ? value.toISOString().slice(0, 10) : null;
+}
+
+function presentTicker<T extends { sharesOutstanding: bigint | null; dateListed: Date | null; dateIncorporated: Date | null; _count: { posts: number } }>(
+  ticker: T,
+) {
+  const { _count, sharesOutstanding, dateListed, dateIncorporated, ...rest } = ticker;
+  return {
+    ...rest,
+    sharesOutstanding: sharesOutstanding == null ? null : Number(sharesOutstanding),
+    dateListed: day(dateListed),
+    dateIncorporated: day(dateIncorporated),
+    postCount: _count.posts,
+  };
+}
 
 function cleanSymbol(raw: string) {
   return raw.replace(/^\$/, "").trim().toUpperCase();
@@ -31,10 +71,7 @@ tickersRouter.get("/watching", async (req: AuthenticatedRequest, res: Response):
       select: { symbol: true, ticker: { select: TICKER_SELECT } },
     });
     res.status(200).json({
-      tickers: watches.map(({ ticker }) => {
-        const { _count, ...rest } = ticker;
-        return { ...rest, postCount: _count.posts };
-      }),
+      tickers: watches.map(({ ticker }) => presentTicker(ticker)),
     });
   } catch (error) {
     console.error("List watchlist error:", error);
@@ -79,7 +116,7 @@ tickersRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise
     });
 
     res.status(200).json({
-      tickers: tickers.map(({ _count, ...ticker }) => ({ ...ticker, postCount: _count.posts })),
+      tickers: tickers.map((ticker) => presentTicker(ticker)),
     });
   } catch (error) {
     console.error("List tickers error:", error);
@@ -142,11 +179,9 @@ tickersRouter.get("/:symbol", async (req: AuthenticatedRequest<{ symbol: string 
       }),
     ]);
 
-    const { _count, ...rest } = ticker;
     res.status(200).json({
       ticker: {
-        ...rest,
-        postCount: _count.posts,
+        ...presentTicker(ticker),
         watchedByMe: !!watched,
         bulls: sentiment.session.bulls,
         bears: sentiment.session.bears,

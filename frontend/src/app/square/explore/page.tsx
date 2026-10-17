@@ -8,7 +8,8 @@ import { useSquare } from "@/components/square/context";
 import { fetchSuggested, fetchTickers, search, type SearchResults } from "@/components/square/api";
 import { compact, type Author, type TickerSummary } from "@/components/square/data";
 import { useMarketTape } from "@/components/square/use-market-tape";
-import { formatChange, formatNaira, formatSector, formatSession, splitSession } from "@/lib/market/quotes";
+import { formatNaira, formatSector, formatSession, splitSession } from "@/lib/market/quotes";
+import { PriceChange } from "@/components/square/price-change";
 import type { TapeQuote } from "@/lib/market/tape";
 
 type Tab = "top" | "people" | "tickers";
@@ -295,12 +296,6 @@ function SessionGroups({ quotes }: { quotes: TapeQuote[] }) {
 
 function MarketTickerRow({ quote }: { quote: TapeQuote }) {
   const router = useRouter();
-  const changeClass =
-    quote.changePct > 0
-      ? "font-mono text-xs font-bold text-primary"
-      : quote.changePct < 0
-        ? "font-mono text-xs font-bold text-bear"
-        : "font-mono text-xs font-bold text-muted-foreground";
   return (
     <button
       type="button"
@@ -313,7 +308,7 @@ function MarketTickerRow({ quote }: { quote: TapeQuote }) {
       </span>
       <span className="text-right">
         <span className="block font-mono text-sm">₦{formatNaira(quote.price)}</span>
-        <span className={changeClass}>{formatChange(quote.changePct)}</span>
+        <PriceChange changePct={quote.changePct} className="font-mono text-xs" />
       </span>
     </button>
   );

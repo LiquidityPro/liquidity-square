@@ -83,7 +83,12 @@ export default function SquareIndex() {
         </div>
       </header>
 
-      <Composer ref={composerRef} onPost={(body, stance, extras) => publish(body, stance, null, extras)} />
+      <Composer
+        ref={composerRef}
+        persistDrafts
+        restoreDraft
+        onPost={(body, stance, extras) => publish(body, stance, null, extras)}
+      />
       <WeekStrip />
 
       <PostFeed

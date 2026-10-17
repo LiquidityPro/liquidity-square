@@ -62,7 +62,7 @@ export function MobileBar({ onCompose }: { onCompose: () => void }) {
     };
   }, [moreOpen]);
 
-  const inThread = /^\/square\/messages\/.+/.test(pathname);
+  const inThread = /^\/square\/(messages|post)\/.+/.test(pathname);
 
   return (
     <>

@@ -13,10 +13,9 @@ self.addEventListener("push", (event) => {
   const title = typeof data.title === "string" && data.title ? data.title : "Liquidity Square";
   const options = {
     body: typeof data.body === "string" ? data.body : "",
-    // Android status-bar and heads-up icons use the alpha channel only.
-    // The full-color icon is opaque, so it draws as a blank square there.
-    icon: "/icons/icon-192.png",
-    badge: "/icons/icon-monochrome-192.png",
+    // Android status-bar icons are a 96px alpha mask. The color logo is the large icon.
+    icon: new URL("/icons/icon-192.png", self.location.origin).href,
+    badge: new URL("/icons/badge-96.png", self.location.origin).href,
     tag: typeof data.id === "string" ? data.id : "liquidity-square",
     data: { url: typeof data.url === "string" ? data.url : "/square/notifications", id: data.id, title, body: data.body },
   };

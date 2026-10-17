@@ -6,10 +6,17 @@ import { useSession } from "next-auth/react";
 import {
   LuBookmark as Bookmark,
   LuCalendarDays as CalendarDays,
+  LuEllipsisVertical as EllipsisVertical,
   LuLink as LinkIcon,
   LuMail as Mail,
   LuMapPin as MapPin,
 } from "react-icons/lu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Avatar, EmptyState, FollowButton, PageHeader, PostFeed, TabBar } from "@/components/square/parts";
 import { Verified } from "@/components/square/avatar";
 import { useSquare } from "@/components/square/context";
@@ -168,16 +175,21 @@ export default function ProfilePage() {
                   </button>
                 </>
               ) : (
-                profile && !profile.blockedMe && !profile.blockedByMe && (
+                profile && (
                   <>
-                    <Link
-                      href={`/square/messages/new/${profile.id}`}
-                      aria-label={`Message @${profile.handle}`}
-                      className="grid size-9 place-items-center rounded-full border transition-colors hover:bg-card"
-                    >
-                      <Mail className="size-4" />
-                    </Link>
-                    <FollowButton author={profile} />
+                    {!profile.blockedMe && !profile.blockedByMe && (
+                      <>
+                        <Link
+                          href={`/square/messages/new/${profile.id}`}
+                          aria-label={`Message @${profile.handle}`}
+                          className="grid size-9 place-items-center rounded-full border transition-colors hover:bg-card"
+                        >
+                          <Mail className="size-4" />
+                        </Link>
+                        <FollowButton author={profile} />
+                      </>
+                    )}
+                    <ProfileMenu profile={profile} onChange={setProfile} />
                   </>
                 )
               )}
@@ -191,7 +203,6 @@ export default function ProfilePage() {
                 {profile.verified && <Verified role={profile.role} />}
               </h2>
               <p className="font-mono text-sm text-muted-foreground">@{profile.handle}</p>
-              {!isMe && <ProfileSafety profile={profile} onChange={setProfile} />}
               {profile.title ? (
                 <p className="mt-1 text-sm text-muted-foreground">{profile.title}</p>
               ) : (
@@ -310,7 +321,7 @@ export default function ProfilePage() {
   );
 }
 
-function ProfileSafety({ profile, onChange }: { profile: Profile; onChange: (profile: Profile) => void }) {
+function ProfileMenu({ profile, onChange }: { profile: Profile; onChange: (profile: Profile) => void }) {
   const { token, hideAuthor } = useSquare();
   const [reporting, setReporting] = useState(false);
   const [pending, setPending] = useState(false);
@@ -346,31 +357,42 @@ function ProfileSafety({ profile, onChange }: { profile: Profile; onChange: (pro
   }
 
   return (
-    <div className="mt-3 flex flex-wrap gap-2">
-      {!profile.blockedMe && !profile.blockedByMe && (
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => void run("mute")}
-          className="rounded-full border px-3 py-1 text-sm font-semibold"
-        >
-          {profile.mutedByMe ? "Unmute" : "Mute"}
-        </button>
-      )}
-      {!profile.blockedMe && (
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => void run("block")}
-          className="rounded-full border px-3 py-1 text-sm font-semibold text-bear"
-        >
-          {profile.blockedByMe ? "Unblock" : "Block"}
-        </button>
-      )}
-      <button type="button" onClick={() => setReporting(true)} className="rounded-full border px-3 py-1 text-sm font-semibold">
-        Report
-      </button>
+    <>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label="Account options"
+            className="grid size-9 place-items-center rounded-full border text-muted-foreground transition-colors hover:bg-card hover:text-foreground data-[state=open]:bg-card"
+          >
+            <EllipsisVertical className="size-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-44 rounded-xl border bg-background p-1 shadow-[0_8px_30px_-12px_var(--primary)]">
+          {!profile.blockedMe && !profile.blockedByMe && (
+            <DropdownMenuItem
+              disabled={pending}
+              onSelect={() => void run("mute")}
+              className="cursor-pointer rounded-lg py-2 font-semibold"
+            >
+              {profile.mutedByMe ? "Unmute" : "Mute"}
+            </DropdownMenuItem>
+          )}
+          {!profile.blockedMe && (
+            <DropdownMenuItem
+              disabled={pending}
+              onSelect={() => void run("block")}
+              className="cursor-pointer rounded-lg py-2 font-semibold text-bear focus:bg-bear/10 focus:text-bear"
+            >
+              {profile.blockedByMe ? "Unblock" : "Block"}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onSelect={() => setReporting(true)} className="cursor-pointer rounded-lg py-2 font-semibold">
+            Report
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <ReportDialog open={reporting} onOpenChange={setReporting} userId={profile.id} />
-    </div>
+    </>
   );
 }

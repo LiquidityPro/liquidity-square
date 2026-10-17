@@ -70,6 +70,7 @@ model User {
   blockedBy    Block[]       @relation("BlockedBy")
   reports      Report[]
   disclosureReceipts DisclosureReceipt[]
+  drafts             Draft[]
 
   disclosureCursor DateTime?
 
@@ -77,10 +78,34 @@ model User {
 }
 
 model Ticker {
-  symbol    String   @id // e.g. "DANGCEM", stored without the leading "$"
-  name      String?
-  sector    String?
-  createdAt DateTime @default(now())
+  symbol               String    @id // e.g. "DANGCEM", stored without the leading "$"
+  name                 String?
+  sector               String?
+  subSector            String?
+  marketClassification String?
+  about                String?   @db.Text
+  natureOfBusiness     String?
+  website              String?
+  email                String?
+  phone                String?
+  address              String?
+  logoUrl              String?
+  internationalSecId   String?
+  sharesOutstanding    BigInt?
+  dateListed           DateTime? @db.Date
+  dateIncorporated     DateTime? @db.Date
+  industry             String?
+  country              String?
+  foundedYear          Int?
+  employees            Int?
+  ceo                  String?
+  executives           String?   @db.Text
+  listingExchange      String?
+  fiscalYear           String?
+  reportingCurrency    String?
+  sicCode              String?
+  profileSyncedAt      DateTime?
+  createdAt            DateTime  @default(now())
 
   posts   Post[]
   watches Watch[]
@@ -118,6 +143,23 @@ model Post {
   @@index([parentId, createdAt])
   @@index([quoteId])
   @@map("posts")
+}
+
+model Draft {
+  id           String    @id @default(cuid())
+  authorId     String
+  body         String    @db.VarChar(280)
+  stance       Stance?
+  poll         Json?
+  scheduledFor DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([authorId, updatedAt])
+  @@index([scheduledFor])
+  @@map("drafts")
 }
 
 model Bookmark {

@@ -9,7 +9,8 @@ import { compact, type Author, type TickerSummary } from "./data";
 import { fetchSentiment, fetchSuggested, fetchTickers } from "./api";
 import { useSquare } from "./context";
 import { useMarketTape } from "./use-market-tape";
-import { formatChange, formatCount, formatMove, formatNaira, formatSector, formatSession, formatTurnover, moveNaira, sectorPath, topMovers } from "@/lib/market/quotes";
+import { formatCompactCount, formatCount, formatMove, formatNaira, formatSector, formatSession, formatTurnover, mostTradedByValue, moveNaira, sectorPath, topMovers } from "@/lib/market/quotes";
+import { PriceChange, QuoteLogo } from "./price-change";
 import type { TapeQuote } from "@/lib/market/tape";
 import { cn } from "@/lib/utils";
 
@@ -178,6 +179,7 @@ export function RightRail({
         )}
 
         <TopMoversCard quotes={snapshot?.quotes} sessionDate={snapshot?.sessionDate} failed={tapeFailed} />
+        <MostTradedCard quotes={snapshot?.quotes} sessionDate={snapshot?.sessionDate} failed={tapeFailed} />
         <FloorVsTape quotes={snapshot?.quotes} sessionDate={snapshot?.sessionDate} token={token} ready={ready} />
 
         <section className="rounded-2xl border bg-card pb-2">
@@ -249,15 +251,9 @@ function TickerQuoteCard({
       {quote ? (
         <>
           <p className="mt-3 font-mono text-3xl font-semibold tracking-tight">₦{formatNaira(quote.price)}</p>
-          <p className={cn("mt-1 font-mono text-sm font-semibold", tone)}>
-            {quote.changePct === 0 ? (
-              formatChange(quote.changePct)
-            ) : (
-              <>
-                {formatMove(moveNaira(quote.price, quote.changePct))}
-                <span className="ml-2">{formatChange(quote.changePct)}</span>
-              </>
-            )}
+          <p className="mt-1 flex flex-wrap items-center gap-2 font-mono text-sm font-semibold">
+            {quote.changePct !== 0 && <span className={tone}>{formatMove(moveNaira(quote.price, quote.changePct))}</span>}
+            <PriceChange changePct={quote.changePct} />
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
             {quote.sector ? (
@@ -335,6 +331,52 @@ export function TopMoversCard({
   );
 }
 
+function MostTradedCard({
+  quotes,
+  sessionDate,
+  failed,
+  limit = 10,
+}: {
+  quotes?: TapeQuote[];
+  sessionDate?: string;
+  failed: boolean;
+  limit?: number;
+}) {
+  const traded = useMemo(() => mostTradedByValue(quotes ?? [], limit), [quotes, limit]);
+  const sessionLabel = sessionDate ? formatSession(sessionDate) : failed ? "Unavailable" : "Loading";
+
+  return (
+    <section className="rounded-2xl border bg-card pb-2">
+      <div className="flex items-center justify-between px-4 pb-2 pt-3">
+        <h2 className="text-xl font-bold">Most traded by value</h2>
+        <span
+          className="label-mono rounded border px-1.5 py-0.5 !text-[0.6rem] text-muted-foreground"
+          title={sessionDate ? `NGX session ${sessionDate}` : "NGX session"}
+        >
+          {sessionLabel}
+        </span>
+      </div>
+      {traded.length === 0 ? (
+        !sessionDate && !failed ? (
+          <RailSkeleton rows={4} label="Loading most traded" />
+        ) : (
+          <p className="px-4 py-2 text-sm text-muted-foreground">
+            {sessionDate ? "No value traded yet." : "Session unavailable."}
+          </p>
+        )
+      ) : (
+        <ol>
+          {traded.map((quote) => (
+            <li key={quote.symbol}>
+              <QuoteStatRow quote={quote} />
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  );
+}
+
 function FloorVsTape({
   quotes,
   sessionDate,
@@ -404,7 +446,7 @@ function FloorVsTape({
             >
               <p className="font-mono font-semibold">${quote.symbol}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {formatChange(quote.changePct)}
+                <PriceChange changePct={quote.changePct} className="font-mono text-xs" />
                 {quiet
                   ? " · moving with almost no reads"
                   : ` · floor is ${count.bulls >= count.bears ? "bull" : "bear"} ${count.bulls}–${count.bears}`}
@@ -485,7 +527,7 @@ function MoverList({
         <ol>
           {quotes.map((quote) => (
             <li key={quote.symbol}>
-              <MoverRow quote={quote} tone={tone} />
+              <QuoteStatRow quote={quote} />
             </li>
           ))}
         </ol>
@@ -494,19 +536,24 @@ function MoverList({
   );
 }
 
-function MoverRow({ quote, tone }: { quote: TapeQuote; tone: "up" | "down" }) {
+function QuoteStatRow({ quote }: { quote: TapeQuote }) {
   const router = useRouter();
   return (
     <button
       type="button"
       onClick={() => router.push(`/square/${quote.symbol}`)}
-      className="flex w-full items-center justify-between gap-3 px-4 py-2 text-left transition-colors hover:bg-background/60"
+      className="flex w-full items-start gap-2 px-4 py-2 text-left transition-colors hover:bg-background/60"
     >
-      <span className="font-mono text-sm font-semibold">${quote.symbol}</span>
-      <span className="flex shrink-0 items-center gap-3 font-mono">
-        <span className="text-xs text-muted-foreground">₦{formatNaira(quote.price)}</span>
-        <span className={cn("text-xs font-bold", tone === "up" ? "text-primary" : "text-bear")}>
-          {formatChange(quote.changePct)}
+      <QuoteLogo symbol={quote.symbol} className="mt-0.5" />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center justify-between gap-2">
+          <span className="font-mono text-sm font-semibold">${quote.symbol}</span>
+          <PriceChange changePct={quote.changePct} className="font-mono text-xs" />
+        </span>
+        <span className="mt-0.5 block font-mono text-[0.7rem] text-muted-foreground">₦{formatNaira(quote.price)}</span>
+        <span className="mt-0.5 flex flex-wrap gap-x-3 font-mono text-[0.7rem] text-muted-foreground">
+          {quote.value != null && <span className="whitespace-nowrap">Value {formatTurnover(quote.value)}</span>}
+          {quote.volume != null && <span className="whitespace-nowrap">Vol {formatCompactCount(quote.volume)}</span>}
         </span>
       </span>
     </button>

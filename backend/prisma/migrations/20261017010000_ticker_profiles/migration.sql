@@ -1,0 +1,15 @@
+-- AlterTable
+ALTER TABLE "tickers" ADD COLUMN "subSector" TEXT,
+ADD COLUMN "marketClassification" TEXT,
+ADD COLUMN "about" TEXT,
+ADD COLUMN "natureOfBusiness" TEXT,
+ADD COLUMN "website" TEXT,
+ADD COLUMN "email" TEXT,
+ADD COLUMN "phone" TEXT,
+ADD COLUMN "address" TEXT,
+ADD COLUMN "logoUrl" TEXT,
+ADD COLUMN "internationalSecId" TEXT,
+ADD COLUMN "sharesOutstanding" BIGINT,
+ADD COLUMN "dateListed" DATE,
+ADD COLUMN "dateIncorporated" DATE,
+ADD COLUMN "profileSyncedAt" TIMESTAMP(3);

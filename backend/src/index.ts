@@ -16,6 +16,8 @@ import { safetyRouter } from "./routes/safety";
 import { disclosuresRouter } from "./routes/disclosures";
 import { ensureListedTickers } from "./lib/listed-tickers";
 import { startDisclosurePoller } from "./lib/disclosures";
+import { startDraftPoller } from "./lib/drafts";
+import { draftsRouter } from "./routes/drafts";
 
 dotenv.config({ quiet: true });
 
@@ -58,9 +60,13 @@ app.use("/api/messages", messagesRouter);
 app.use("/api/alerts", alertsRouter);
 app.use("/api/safety", safetyRouter);
 app.use("/api/disclosures", disclosuresRouter);
+app.use("/api/drafts", draftsRouter);
 
 void ensureListedTickers();
-if (!process.env.VERCEL) startDisclosurePoller();
+if (!process.env.VERCEL) {
+  startDisclosurePoller();
+  startDraftPoller();
+}
 
 // Start server (only in local / non-Vercel environment)
 if (!process.env.VERCEL) {

@@ -35,7 +35,7 @@ export function postInclude(userId: string) {
     parent: { select: { id: true, author: { select: AUTHOR_SELECT } } },
     quote: { include: quoteInclude },
     poll: { include: pollInclude(userId) },
-    _count: { select: { likes: true, reposts: true, replies: true } },
+    _count: { select: { likes: true, reposts: true, replies: true, bookmarks: true } },
   } satisfies Prisma.PostInclude;
 }
 
@@ -76,6 +76,7 @@ export function toPostDto(post: PostWithRelations) {
     likes: post._count.likes,
     reposts: post._count.reposts,
     replies: post._count.replies,
+    bookmarks: post._count.bookmarks,
     likedByMe: post.likes.length > 0,
     repostedByMe: post.reposts.length > 0,
     bookmarkedByMe: post.bookmarks.length > 0,
