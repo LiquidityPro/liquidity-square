@@ -610,8 +610,8 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
               )}
             </div>
           )}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
-            <div className="flex items-center gap-1" role="group" aria-label="Your stance">
+          <div className="flex flex-nowrap items-center justify-between gap-1.5 border-t pt-3 sm:gap-2">
+            <div className="flex min-w-0 items-center gap-0.5 sm:gap-1" role="group" aria-label="Your stance">
               <StanceButton current={stance} value="bull" onChange={setStance} />
               <StanceButton current={stance} value="bear" onChange={setStance} />
               {allowPoll && (
@@ -622,11 +622,11 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
                   title="Poll"
                   onClick={() => setPollOn((open) => !open)}
                   className={cn(
-                    "grid size-9 place-items-center rounded-full text-primary hover:bg-primary/10",
+                    "grid size-7 shrink-0 place-items-center rounded-full text-primary hover:bg-primary/10 sm:size-9",
                     pollOn && "bg-primary/10",
                   )}
                 >
-                  <ChartColumn className="size-[18px]" />
+                  <ChartColumn className="size-3.5 sm:size-[18px]" />
                 </button>
               )}
               {persistDrafts && (
@@ -636,9 +636,9 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
                     aria-label="Drafts"
                     title="Drafts"
                     onClick={() => setDraftsOpen(true)}
-                    className="grid size-9 place-items-center rounded-full text-primary hover:bg-primary/10"
+                    className="grid size-7 shrink-0 place-items-center rounded-full text-primary hover:bg-primary/10 sm:size-9"
                   >
-                    <FileText className="size-[18px]" />
+                    <FileText className="size-3.5 sm:size-[18px]" />
                   </button>
                   <button
                     type="button"
@@ -647,19 +647,19 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
                     title="Schedule"
                     onClick={() => setScheduleOpen((open) => !open)}
                     className={cn(
-                      "grid size-9 place-items-center rounded-full text-primary hover:bg-primary/10",
+                      "grid size-7 shrink-0 place-items-center rounded-full text-primary hover:bg-primary/10 sm:size-9",
                       scheduleOpen && "bg-primary/10",
                     )}
                   >
-                    <Clock className="size-[18px]" />
+                    <Clock className="size-3.5 sm:size-[18px]" />
                   </button>
                 </>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
               {body.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <svg viewBox="0 0 24 24" className="size-6 -rotate-90" aria-hidden="true">
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <svg viewBox="0 0 24 24" className="size-5 -rotate-90 sm:size-6" aria-hidden="true">
                     <circle cx="12" cy="12" r="10" fill="none" stroke="var(--border)" strokeWidth="2.5" />
                     <circle
                       cx="12"
@@ -684,7 +684,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
                   else submit();
                 }}
                 disabled={!canPost || savingDraft || (!!scheduleAt && !scheduledIso())}
-                className="min-h-9 rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground transition hover:opacity-90 disabled:opacity-40 enabled:active:scale-[0.96]"
+                className="h-7 shrink-0 rounded-full bg-primary px-3 text-xs font-bold text-primary-foreground transition hover:opacity-90 disabled:opacity-40 enabled:active:scale-[0.96] sm:h-9 sm:px-5 sm:text-sm"
               >
                 {scheduleAt ? "Schedule" : submitLabel}
               </button>
@@ -792,7 +792,7 @@ function StanceButton({
       aria-pressed={on}
       onClick={() => onChange(on ? null : value)}
       className={cn(
-        "label-mono flex min-h-9 items-center gap-1 rounded-full border px-3 transition active:scale-[0.96]",
+        "label-mono flex h-7 shrink-0 items-center gap-1 rounded-full border px-2 text-[0.62rem] transition active:scale-[0.96] sm:h-9 sm:px-3 sm:text-[0.72rem]",
         bull
           ? on
             ? "border-primary bg-primary text-primary-foreground"
@@ -802,7 +802,7 @@ function StanceButton({
             : "border-bear/40 text-bear hover:bg-bear/10",
       )}
     >
-      {bull ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
+      {bull ? <TrendingUp className="size-3 sm:size-3.5" /> : <TrendingDown className="size-3 sm:size-3.5" />}
       {bull ? "Bull" : "Bear"}
     </button>
   );
