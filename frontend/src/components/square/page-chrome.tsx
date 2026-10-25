@@ -4,6 +4,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { LuArrowLeft as ArrowLeft } from "react-icons/lu";
 import { cn } from "@/lib/utils";
+import { MobileMenuButton } from "./mobile-menu";
 import { PostCard } from "./post-card";
 import type { Author } from "./data";
 import type { PostList } from "./use-post-list";
@@ -29,7 +30,10 @@ export function PageHeader({
 
   return (
     <header className="sticky top-0 z-30 shrink-0 border-b bg-background/65 backdrop-blur-2xl backdrop-saturate-150">
-      <div className="flex min-h-14 items-center gap-3 px-4 py-2">
+      <div className="flex min-h-14 items-center gap-2 px-1.5 py-2 sm:gap-3 sm:px-4">
+        <div className="sm:hidden">
+          <MobileMenuButton />
+        </div>
         {back && (
           <button
             type="button"
