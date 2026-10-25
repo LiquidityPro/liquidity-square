@@ -9,7 +9,7 @@ import { fetchSuggested, fetchTickers, search, type SearchResults } from "@/comp
 import { compact, type Author, type TickerSummary } from "@/components/square/data";
 import { useMarketTape } from "@/components/square/use-market-tape";
 import { formatNaira, formatSector, formatSession, splitSession } from "@/lib/market/quotes";
-import { PriceChange } from "@/components/square/price-change";
+import { PriceChange, QuoteLogo } from "@/components/square/price-change";
 import type { TapeQuote } from "@/lib/market/tape";
 
 type Tab = "top" | "people" | "tickers";
@@ -327,16 +327,19 @@ function TickerResult({
       <button
         type="button"
         onClick={() => router.push(`/square/${ticker.symbol}`)}
-        className="w-full px-4 py-3 text-left transition-colors hover:bg-card/60"
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-card/60"
       >
-        <p className="label-mono !text-[0.62rem] text-muted-foreground">
-          {rank} · {ticker.sector ?? "NGX"} · Trending
-        </p>
-        <p className="mt-0.5 font-mono font-semibold">${ticker.symbol}</p>
-        {ticker.name && <p className="text-xs text-muted-foreground">{ticker.name}</p>}
-        <p className="text-xs text-muted-foreground">
-          {ticker.postsLabel ?? `${compact(ticker.postCount)} posts`}
-        </p>
+        <QuoteLogo symbol={ticker.symbol} className="size-8 rounded-md" />
+        <span className="min-w-0">
+          <p className="label-mono !text-[0.62rem] text-muted-foreground">
+            {rank} · {ticker.sector ?? "NGX"} · Trending
+          </p>
+          <p className="mt-0.5 font-mono font-semibold">${ticker.symbol}</p>
+          {ticker.name && <p className="truncate text-xs text-muted-foreground">{ticker.name}</p>}
+          <p className="text-xs text-muted-foreground">
+            {ticker.postsLabel ?? `${compact(ticker.postCount)} posts`}
+          </p>
+        </span>
       </button>
     </li>
   );

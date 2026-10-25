@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/site";
+import { MobileMenuButton } from "@/components/square/mobile-menu";
 import { Composer, EmptyState, PostFeed, TabBar } from "@/components/square/parts";
 import { useSquare } from "@/components/square/context";
 import { fetchPosts, fetchWatchlist } from "@/components/square/api";
@@ -70,14 +71,16 @@ export default function SquareIndex() {
   return (
     <>
       <header className="sticky top-0 z-30 border-b bg-background/65 backdrop-blur-2xl backdrop-saturate-150">
-        <div className="flex items-center justify-between px-4 pt-3">
-          <div className="flex items-center gap-3">
-            <div className="sm:hidden [&_span]:hidden">
-              <Logo />
-            </div>
-            <h1 className="text-xl font-bold">The Square</h1>
+        <div className="grid min-h-14 grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center px-1.5 sm:hidden">
+          <div className="flex justify-center">
+            <MobileMenuButton />
           </div>
+          <div className="flex items-center justify-center">
+            <Logo mark className="size-8" />
+          </div>
+          <div aria-hidden="true" />
         </div>
+        <h1 className="sr-only">The Square</h1>
         <div className="mt-1">
           <TabBar tabs={TABS} value={tab} onChange={setTab} label="Feed" />
         </div>

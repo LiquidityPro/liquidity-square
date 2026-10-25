@@ -28,7 +28,15 @@ const AVATAR_SIZES = {
   lg: "size-24 text-2xl sm:size-32 sm:text-3xl",
 };
 
-export function Avatar({ author, size = "md" }: { author: Author; size?: keyof typeof AVATAR_SIZES }) {
+export function Avatar({
+  author,
+  size = "md",
+  className,
+}: {
+  author: Author;
+  size?: keyof typeof AVATAR_SIZES;
+  className?: string;
+}) {
   return (
     <div
       aria-hidden="true"
@@ -37,6 +45,7 @@ export function Avatar({ author, size = "md" }: { author: Author; size?: keyof t
         tone(author.handle),
         author.verified && "ring-2 ring-primary/60 ring-offset-2 ring-offset-background",
         AVATAR_SIZES[size],
+        className,
       )}
     >
       {author.image ? (

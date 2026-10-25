@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { useTheme } from "@/components/theme-provider";
 import { PushPrompt } from "@/components/pwa/push-prompt";
 import { InstallSheet } from "@/components/pwa/install-sheet";
+import { SquareSplash } from "@/components/square/splash";
 
 export default function SquareLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -55,6 +56,7 @@ function SquareInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={lockedColumn ? "flex h-dvh flex-col overflow-hidden" : "flex min-h-screen flex-col"}>
+      <SquareSplash />
       <TickerTape onOpen={() => setRailOpen(true)} />
       <Sheet open={railOpen} onOpenChange={setRailOpen}>
         <SheetContent

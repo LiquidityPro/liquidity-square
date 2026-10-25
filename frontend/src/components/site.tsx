@@ -1,6 +1,39 @@
 import Image from "next/image";
+import { cn } from "@/lib/utils";
 
-export function Logo() {
+export function Logo({
+  mark = false,
+  priority = false,
+  className,
+}: {
+  /** Icon only, for the mobile header and the boot splash. */
+  mark?: boolean;
+  priority?: boolean;
+  className?: string;
+}) {
+  if (mark) {
+    return (
+      <div role="img" aria-label="Liquidity Square" className={cn("relative size-8", className)}>
+        <Image
+          src="/liquidity_square_light_icon.svg"
+          alt=""
+          fill
+          priority={priority}
+          sizes="128px"
+          className="object-contain dark:hidden"
+        />
+        <Image
+          src="/liquidity_square_dark_icon.svg"
+          alt=""
+          fill
+          priority={priority}
+          sizes="128px"
+          className="hidden object-contain dark:block"
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       role="img"

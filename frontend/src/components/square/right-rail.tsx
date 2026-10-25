@@ -163,13 +163,16 @@ export function RightRail({
                       <button
                         type="button"
                         onClick={() => router.push(`/square/${t.ticker}`)}
-                        className="w-full px-4 py-3 text-left transition-colors hover:bg-background/60"
+                        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-background/60"
                       >
-                        <p className="label-mono !text-[0.62rem] text-muted-foreground">
-                          {i + 1} · {t.sector} · Trending
-                        </p>
-                        <p className="mt-0.5 font-mono font-semibold">${t.ticker}</p>
-                        <p className="text-xs text-muted-foreground">{t.posts}</p>
+                        <QuoteLogo symbol={t.ticker} className="size-8 rounded-md" />
+                        <span className="min-w-0">
+                          <p className="label-mono !text-[0.62rem] text-muted-foreground">
+                            {i + 1} · {t.sector} · Trending
+                          </p>
+                          <p className="mt-0.5 font-mono font-semibold">${t.ticker}</p>
+                          <p className="text-xs text-muted-foreground">{t.posts}</p>
+                        </span>
                       </button>
                     </li>
                   ))}
