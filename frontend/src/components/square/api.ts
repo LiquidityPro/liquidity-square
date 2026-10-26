@@ -502,6 +502,24 @@ function toNotification(n: NotificationDto): SquareNotification {
   };
 }
 
+export type StoredFiling = {
+  id: string;
+  symbol: string;
+  label: string;
+  title: string;
+  url: string;
+  filedAt: string;
+};
+
+export async function fetchFilings(token: string, days: number): Promise<StoredFiling[]> {
+  const { filings } = await request<{ filings: StoredFiling[] }>(`/disclosures?days=${days}`, token);
+  return filings;
+}
+
+export async function markFilingsSeen(token: string): Promise<void> {
+  await request("/disclosures/seen", token, "POST");
+}
+
 export async function syncDisclosures(token: string): Promise<{ delivered: number; notifications: SquareNotification[] }> {
   const result = await request<{ delivered: number; notifications: NotificationDto[] }>("/disclosures/sync", token, "POST");
   return { delivered: result.delivered, notifications: result.notifications.map(toNotification) };

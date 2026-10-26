@@ -73,6 +73,10 @@ model User {
   drafts             Draft[]
 
   disclosureCursor DateTime?
+  /** Filings filed after this moment are still unread. */
+  filingsSeenAt    DateTime?
+  /** Set when the one "check the filings" nudge has been sent for the current unread pile. */
+  filingNudgeAt    DateTime?
 
   @@map("users")
 }
@@ -196,6 +200,7 @@ enum NotificationType {
   quote
   alert
   disclosure
+  filings
 }
 
 model Notification {
@@ -414,6 +419,20 @@ model Report {
   @@index([reporterId, createdAt])
   @@index([postId])
   @@map("reports")
+}
+
+model Filing {
+  id        String   @id @default(cuid())
+  key       String   @unique @db.VarChar(64)
+  symbol    String   @db.VarChar(12)
+  label     String   @db.VarChar(40)
+  title     String   @db.VarChar(300)
+  url       String   @db.VarChar(500)
+  filedAt   DateTime
+  createdAt DateTime @default(now())
+
+  @@index([filedAt])
+  @@map("filings")
 }
 
 model DisclosureReceipt {

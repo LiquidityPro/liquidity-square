@@ -96,7 +96,7 @@ export type Profile = Author & {
   titleLockedUntil?: string | null;
 };
 
-export type NotificationType = "like" | "follow" | "reply" | "repost" | "quote" | "alert" | "disclosure";
+export type NotificationType = "like" | "follow" | "reply" | "repost" | "quote" | "alert" | "disclosure" | "filings";
 
 export type SquareNotification = {
   id: string;
@@ -116,6 +116,7 @@ export function notificationLink(item: Pick<SquareNotification, "type" | "href" 
   href: string;
   external: boolean;
 } {
+  if (item.href?.startsWith("/")) return { href: item.href, external: false };
   if (item.type === "disclosure" && item.href && NGX_FILING.test(item.href)) {
     return { href: item.href, external: true };
   }
