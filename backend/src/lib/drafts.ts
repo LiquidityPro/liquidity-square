@@ -1,6 +1,7 @@
 import { Prisma, Stance } from "@prisma/client";
 import { prisma } from "./prisma";
-import { postInclude } from "./post";
+import { postInclude, toPostDto } from "./post";
+import { publishLivePost } from "./live-publish";
 
 const TICKER_RE = /\$([A-Z]{2,12})/g;
 const POLL_MS = 30_000;
@@ -45,13 +46,13 @@ async function publishDraft(draft: DraftRow) {
   const symbols = extractTickers(draft.body);
   const now = new Date();
 
-  await prisma.$transaction(async (tx) => {
+  const created = await prisma.$transaction(async (tx) => {
     const removed = await tx.draft.deleteMany({
       where: { id: draft.id, scheduledFor: { lte: now } },
     });
-    if (removed.count !== 1) return;
+    if (removed.count !== 1) return null;
 
-    await tx.post.create({
+    return tx.post.create({
       data: {
         body: draft.body,
         stance: draft.stance,
@@ -81,6 +82,9 @@ async function publishDraft(draft: DraftRow) {
       include: postInclude(draft.authorId),
     });
   });
+  if (created) {
+    await publishLivePost(toPostDto(created)).catch((error) => console.error("Live post failed", error));
+  }
 }
 
 /** Turns due scheduled drafts into posts. Safe to run from more than one server. */

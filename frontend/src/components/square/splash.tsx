@@ -9,11 +9,13 @@ const HOLD_MS = 1100;
 const LEAVE_MS = 680;
 
 /* Full-screen boot mark. Fades in, rests, then the floor shows through. */
-export function SquareSplash() {
+export function SquareSplash({ onDone }: { onDone?: () => void }) {
   const { ready } = useSquare();
   const [visible, setVisible] = useState(true);
   const [leaving, setLeaving] = useState(false);
   const mountedAt = useRef<number | null>(null);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
   useEffect(() => {
     mountedAt.current = performance.now();
@@ -34,6 +36,11 @@ export function SquareSplash() {
     const timer = window.setTimeout(() => setVisible(false), reduce ? 0 : LEAVE_MS);
     return () => window.clearTimeout(timer);
   }, [leaving]);
+
+  useEffect(() => {
+    if (visible) return;
+    onDoneRef.current?.();
+  }, [visible]);
 
   if (!visible) return null;
 

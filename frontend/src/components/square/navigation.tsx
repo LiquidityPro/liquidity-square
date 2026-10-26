@@ -125,7 +125,7 @@ export function LeftNav({ onCompose }: { onCompose: () => void }) {
   }, [moreOpen]);
 
   return (
-    <aside className="sticky top-10 hidden h-[calc(100dvh-2.5rem)] min-h-[calc(100dvh-2.5rem)] w-[76px] shrink-0 flex-col justify-between overflow-visible px-2 py-3 sm:flex xl:w-[260px] xl:px-3">
+    <aside data-tour="nav" className="sticky top-10 hidden h-[calc(100dvh-2.5rem)] min-h-[calc(100dvh-2.5rem)] w-[76px] shrink-0 flex-col justify-between overflow-visible px-2 py-3 sm:flex xl:w-[260px] xl:px-3">
       <div className="flex flex-col items-center gap-1 xl:items-stretch">
         <div className="mb-5 px-2">
           <Logo />

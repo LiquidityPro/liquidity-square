@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { pageSize } from "../lib/post";
 import { notificationSelect, toNotificationDto } from "../lib/notification-dto";
 import { authenticateJwt, AuthenticatedRequest } from "../middleware/auth";
+import { publishLiveUnread } from "../lib/live-publish";
 
 export const notificationsRouter = Router();
 
@@ -51,6 +52,7 @@ notificationsRouter.post("/read", async (req: AuthenticatedRequest, res: Respons
       where: { recipientId: req.userId!, readAt: null },
       data: { readAt: new Date() },
     });
+    publishLiveUnread(req.userId!, 0);
     res.status(204).end();
   } catch (error) {
     console.error("Mark notifications read error:", error);

@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   LuBookmark as Bookmark,
   LuChevronRight as ChevronRight,
+  LuCompass as Compass,
   LuLock as Lock,
   LuMail as Mail,
   LuShield as Shield,
@@ -13,6 +15,7 @@ import {
 } from "react-icons/lu";
 import type { IconType } from "react-icons";
 import { PageHeader, ThemeToggle } from "@/components/square/parts";
+import { requestSquareTour } from "@/components/square/square-tour";
 import { useCurrentAuthor } from "@/components/square/use-current-author";
 
 const LINKS: { href: string; label: string; icon: IconType; hint: string }[] = [
@@ -25,6 +28,7 @@ const LINKS: { href: string; label: string; icon: IconType; hint: string }[] = [
 ];
 
 export default function SettingsPage() {
+  const router = useRouter();
   const me = useCurrentAuthor();
   const profileHref = me.id ? `/square/u/${me.id}?edit=1` : "/square";
 
@@ -50,6 +54,23 @@ export default function SettingsPage() {
           </div>
           <ThemeToggle />
         </div>
+      </section>
+      <section className="border-b">
+        <button
+          type="button"
+          onClick={() => {
+            requestSquareTour();
+            router.push("/square?tour=1");
+          }}
+          className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-card/60"
+        >
+          <Compass className="size-5" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">Take the tour</span>
+            <span className="block text-sm text-muted-foreground">Walk through the floor again</span>
+          </span>
+          <ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
+        </button>
       </section>
       <section>
         <h2 className="px-4 pt-4 text-sm font-bold text-muted-foreground">More</h2>

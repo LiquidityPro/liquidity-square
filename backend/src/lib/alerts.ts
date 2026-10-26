@@ -1,5 +1,7 @@
 import { AlertDirection } from "@prisma/client";
 import { prisma } from "./prisma";
+import { notificationSelect, toNotificationDto } from "./notification-dto";
+import { publishLiveNotification } from "./live-publish";
 import { deliverPush } from "./push";
 
 export type SweepQuote = { symbol: string; changePct: number };
@@ -88,8 +90,12 @@ async function runSweep(sessionDate: string, quotes: SweepQuote[]) {
           symbol: alert.symbol,
           summary: summary(alert.symbol, changePct).slice(0, 180),
         },
+        select: notificationSelect,
       });
       await deliverPush(notification.id);
+      await publishLiveNotification(alert.userId, toNotificationDto(notification)).catch((error) =>
+        console.error("Live alert failed", error),
+      );
       fired += 1;
     } catch (error) {
       console.error("Price alert delivery error:", error);
