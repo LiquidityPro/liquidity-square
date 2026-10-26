@@ -84,6 +84,7 @@ export function MobileMenuButton() {
         aria-label="Open menu"
         aria-expanded={open}
         aria-controls="mobile-account-menu"
+        data-tour="menu"
         onClick={() => setOpen(true)}
         className="grid size-11 place-items-center rounded-full text-foreground transition hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-95"
       >

@@ -268,8 +268,8 @@ export function SquareProvider({ children }: { children: ReactNode }) {
             return next;
           });
         }
-        if (epochAtStart === readEpoch.current) setUnreadCount(update.unreadCount);
-        setUnreadMessages(update.unreadMessages);
+        if (update.unreadCount != null && epochAtStart === readEpoch.current) setUnreadCount(update.unreadCount);
+        if (update.unreadMessages != null) setUnreadMessages(update.unreadMessages);
       });
       for (const item of update.notifications) {
         if (baseline) {

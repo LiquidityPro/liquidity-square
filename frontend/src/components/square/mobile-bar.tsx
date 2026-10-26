@@ -34,6 +34,7 @@ export function MobileBar({ onCompose }: { onCompose: () => void }) {
       )}
       <nav
         aria-label="Square navigation"
+        data-tour="mobile-nav"
         className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-background/65 pb-[env(safe-area-inset-bottom)] backdrop-blur-2xl backdrop-saturate-150 sm:hidden"
       >
         {items.map((item) => {

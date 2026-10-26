@@ -3,6 +3,7 @@ import { NotificationType, Prisma, Stance } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { listPosts, listReposts, pageSize, pollInclude, postInclude, toPollDto, toPostDto } from "../lib/post";
 import { publishDueDrafts } from "../lib/drafts";
+import { publishLivePost } from "../lib/live-publish";
 import { toAuthorDto, AUTHOR_SELECT } from "../lib/author";
 import { notify, unnotify } from "../lib/notify";
 import { authenticateJwt, AuthenticatedRequest } from "../middleware/auth";
@@ -195,7 +196,9 @@ postsRouter.post("/", async (req: AuthenticatedRequest, res: Response): Promise<
       await notify({ type: NotificationType.quote, actorId: userId, recipientId: quoted.authorId, postId: post.id });
     }
 
-    res.status(201).json({ post: toPostDto(post) });
+    const dto = toPostDto(post);
+    await publishLivePost(dto).catch((error) => console.error("Live post failed", error));
+    res.status(201).json({ post: dto });
   } catch (error) {
     console.error("Create post error:", error);
     res.status(500).json({ error: "Internal server error" });

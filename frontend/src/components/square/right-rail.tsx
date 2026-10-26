@@ -103,6 +103,7 @@ export function RightRail({
 
   return (
     <aside
+      data-tour={variant === "rail" ? "rail" : undefined}
       className={
         variant === "sheet"
           ? "flex h-full min-h-0 flex-col overflow-hidden px-4 pr-12 pt-4"

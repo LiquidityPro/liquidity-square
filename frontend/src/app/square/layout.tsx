@@ -8,8 +8,9 @@ import { Toaster } from "@/components/ui/sonner";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useTheme } from "@/components/theme-provider";
 import { PushPrompt } from "@/components/pwa/push-prompt";
-import { InstallSheet } from "@/components/pwa/install-sheet";
+import { InstallTour } from "@/components/pwa/install-tour";
 import { SquareSplash } from "@/components/square/splash";
+import { SquareTour } from "@/components/square/square-tour";
 
 export default function SquareLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -28,6 +29,7 @@ function SquareInner({ children }: { children: React.ReactNode }) {
   const activeTicker = params?.ticker;
   const lockedColumn = /^\/square\/(messages|post)\/.+/.test(pathname);
   const [railOpen, setRailOpen] = useState(false);
+  const [floorReady, setFloorReady] = useState(false);
 
   useEffect(() => {
     setRailOpen(false);
@@ -55,8 +57,9 @@ function SquareInner({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className={lockedColumn ? "flex h-dvh flex-col overflow-hidden" : "flex min-h-screen flex-col"}>
-      <SquareSplash />
+    <>
+    <div id="square-shell" className={lockedColumn ? "flex h-dvh flex-col overflow-hidden" : "flex min-h-screen flex-col"}>
+      <SquareSplash onDone={() => setFloorReady(true)} />
       <TickerTape onOpen={() => setRailOpen(true)} />
       <Sheet open={railOpen} onOpenChange={setRailOpen}>
         <SheetContent
@@ -105,5 +108,8 @@ function SquareInner({ children }: { children: React.ReactNode }) {
         }}
       />
     </div>
+    <SquareTour ready={floorReady} />
+    <InstallTour ready={floorReady} />
+    </>
   );
 }

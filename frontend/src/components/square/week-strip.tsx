@@ -28,14 +28,14 @@ export function WeekStrip({ symbol }: { symbol?: string }) {
   if (failed || filings?.length === 0) return null;
   if (!filings) {
     return (
-      <section className="border-b px-4 py-3" aria-label="This week on NGX">
+      <section data-tour="week" className="border-b px-4 py-3" aria-label="This week on NGX">
         <div className="h-16 animate-pulse rounded-xl bg-card" />
       </section>
     );
   }
 
   return (
-    <section className="border-b px-4 py-3" aria-label="This week on NGX">
+    <section data-tour="week" className="border-b px-4 py-3" aria-label="This week on NGX">
       <div className="mb-2 flex items-baseline justify-between gap-3">
         <h2 className="text-sm font-semibold">This week on NGX</h2>
         <p className="text-xs text-muted-foreground">Filings from the last 7 days</p>

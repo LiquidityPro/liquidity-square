@@ -81,7 +81,7 @@ export default function SquareIndex() {
           <div aria-hidden="true" />
         </div>
         <h1 className="sr-only">The Square</h1>
-        <div className="mt-1">
+        <div className="mt-1" data-tour="feed">
           <TabBar tabs={TABS} value={tab} onChange={setTab} label="Feed" />
         </div>
       </header>
@@ -90,6 +90,7 @@ export default function SquareIndex() {
         ref={composerRef}
         persistDrafts
         restoreDraft
+        tourAnchor="composer"
         onPost={(body, stance, extras) => publish(body, stance, null, extras)}
       />
       <WeekStrip />

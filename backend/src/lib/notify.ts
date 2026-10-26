@@ -1,5 +1,7 @@
 import { NotificationType } from "@prisma/client";
 import { prisma } from "./prisma";
+import { notificationSelect, toNotificationDto } from "./notification-dto";
+import { publishLiveNotification } from "./live-publish";
 import { deliverPush } from "./push";
 import { isBlockedEitherWay } from "./visibility";
 
@@ -15,8 +17,14 @@ export async function notify({ type, actorId, recipientId, postId = null }: Noti
   if (actorId === recipientId) return;
   try {
     if (await isBlockedEitherWay(actorId, recipientId)) return;
-    const notification = await prisma.notification.create({ data: { type, actorId, recipientId, postId } });
+    const notification = await prisma.notification.create({
+      data: { type, actorId, recipientId, postId },
+      select: notificationSelect,
+    });
     await deliverPush(notification.id);
+    await publishLiveNotification(recipientId, toNotificationDto(notification)).catch((error) =>
+      console.error("Live notification failed", error),
+    );
   } catch (error) {
     console.error("Create notification error:", error);
   }

@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { AUTHOR_SELECT, toAuthorDto } from "./author";
+import { liveFanout, liveUserIds, type LiveFrame } from "./live-hub";
 import { InteractionError, assertCanInteract } from "./visibility";
 
 export const MESSAGE_LIMIT = 1000;
@@ -86,22 +87,32 @@ export async function appendMessage(conversationId: string, senderId: string, bo
   if (!text) throw new MessageError("Message can't be empty", 400);
   if (text.length > MESSAGE_LIMIT) throw new MessageError(`Messages are limited to ${MESSAGE_LIMIT} characters`, 400);
 
-  return prisma.$transaction(async (tx) => {
-    const created = await tx.directMessage.create({
+  const created = await prisma.$transaction(async (tx) => {
+    const message = await tx.directMessage.create({
       data: { conversationId, senderId, body: text },
       include: messageInclude,
     });
     await tx.conversation.update({
       where: { id: conversationId },
-      data: { updatedAt: created.createdAt },
+      data: { updatedAt: message.createdAt },
     });
     await tx.conversationRead.upsert({
       where: { conversationId_userId: { conversationId, userId: senderId } },
-      create: { conversationId, userId: senderId, lastReadAt: created.createdAt },
-      update: { lastReadAt: created.createdAt },
+      create: { conversationId, userId: senderId, lastReadAt: message.createdAt },
+      update: { lastReadAt: message.createdAt },
     });
-    return created;
+    return message;
   });
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    select: { userAId: true, userBId: true },
+  });
+  if (conversation) {
+    await publishLiveMessage(created, [conversation.userAId, conversation.userBId]).catch((error) =>
+      console.error("Live message failed", error),
+    );
+  }
+  return created;
 }
 
 /** When the other person last opened this thread. */
@@ -133,12 +144,56 @@ export async function requireMembership(conversationId: string, userId: string) 
 }
 
 export async function markConversationRead(conversationId: string, userId: string) {
-  await requireMembership(conversationId, userId);
+  const { conversation } = await requireMembership(conversationId, userId);
   const now = new Date();
   await prisma.conversationRead.upsert({
     where: { conversationId_userId: { conversationId, userId } },
     create: { conversationId, userId, lastReadAt: now },
     update: { lastReadAt: now },
   });
-  return unreadMessageCount(userId);
+  const unreadMessages = await unreadMessageCount(userId);
+  const peerId = conversation.userAId === userId ? conversation.userBId : conversation.userAId;
+  publishLiveRead(conversationId, userId, peerId, now, unreadMessages);
+  return unreadMessages;
+}
+
+function liveFrame(now: string, extra: Partial<LiveFrame> = {}): LiveFrame {
+  return { now, posts: [], notifications: [], messages: [], reads: [], ...extra };
+}
+
+async function publishLiveMessage(message: MessageRow, participantIds: string[]) {
+  const online = new Set(liveUserIds());
+  const targets = participantIds.filter((id) => online.has(id));
+  if (targets.length === 0) return;
+  const unread = new Map<string, number>();
+  for (const id of targets) {
+    if (id !== message.senderId) unread.set(id, await unreadMessageCount(id));
+  }
+  const now = new Date().toISOString();
+  liveFanout((userId) => {
+    if (!targets.includes(userId)) return null;
+    const unreadMessages = unread.get(userId);
+    return liveFrame(now, {
+      ...(unreadMessages != null ? { unreadMessages } : {}),
+      messages: [toMessageDto(message, userId)],
+    });
+  });
+}
+
+function publishLiveRead(
+  conversationId: string,
+  readerId: string,
+  peerId: string,
+  readAt: Date,
+  readerUnread: number,
+) {
+  const online = new Set(liveUserIds());
+  if (!online.has(readerId) && !online.has(peerId)) return;
+  const now = new Date().toISOString();
+  const read = { conversationId, readAt: readAt.toISOString() };
+  liveFanout((userId) => {
+    if (userId === readerId) return liveFrame(now, { unreadMessages: readerUnread });
+    if (userId === peerId) return liveFrame(now, { reads: [read] });
+    return null;
+  });
 }

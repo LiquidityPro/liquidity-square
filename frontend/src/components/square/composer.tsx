@@ -60,6 +60,8 @@ type ComposerProps = {
   restoreDraft?: boolean;
   /** Pin the composer to the bottom of a locked column. */
   docked?: boolean;
+  /** Marks the home composer for the first-run tour. */
+  tourAnchor?: string;
 };
 
 export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
@@ -76,6 +78,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
       persistDrafts = false,
       restoreDraft = false,
       docked = false,
+      tourAnchor,
     },
     ref,
   ) {
@@ -440,7 +443,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(
 
     return (
       <>
-      <div className={cn("flex gap-3 bg-background px-4 py-3", docked ? "shrink-0 border-t" : "border-b")}>
+      <div data-tour={tourAnchor} className={cn("flex gap-3 bg-background px-4 py-3", docked ? "shrink-0 border-t" : "border-b")}>
         <Avatar author={me} />
         <div className="min-w-0 flex-1">
           {quoted && (

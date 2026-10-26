@@ -3,6 +3,7 @@ import { prisma } from "./prisma";
 import { deliverPush } from "./push";
 import { getFilings, type FilingNotice } from "./ngx-filings";
 import { notificationSelect, toNotificationDto } from "./notification-dto";
+import { publishLiveNotification } from "./live-publish";
 
 const CATCH_UP = 5;
 const SWEEP_GAP_MS = 60_000;
@@ -37,7 +38,9 @@ async function deliverFiling(userId: string, filing: FilingNotice) {
     select: notificationSelect,
   });
   await deliverPush(notification.id);
-  return toNotificationDto(notification);
+  const dto = toNotificationDto(notification);
+  await publishLiveNotification(userId, dto).catch((error) => console.error("Live disclosure failed", error));
+  return dto;
 }
 
 async function deliverMany(userId: string, filings: FilingNotice[]) {

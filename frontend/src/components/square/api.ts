@@ -522,30 +522,29 @@ export type MessageRead = { conversationId: string; readAt: string };
 
 export type LiveUpdate = {
   now: string;
-  unreadCount: number;
-  unreadMessages: number;
+  unreadCount: number | null;
+  unreadMessages: number | null;
   posts: Post[];
   notifications: SquareNotification[];
   messages: ChatMessage[];
   reads: MessageRead[];
 };
 
-export async function fetchLive(token: string, since: string | null): Promise<LiveUpdate> {
-  const data = await request<{
-    now: string;
-    unreadCount: number;
-    unreadMessages?: number;
-    posts: PostDto[];
-    notifications: NotificationDto[];
-    messages?: ChatMessageDto[];
-    reads?: MessageRead[];
-  }>(`/live${query({ since })}`, token);
+export function parseLiveUpdate(data: {
+  now: string;
+  unreadCount?: number;
+  unreadMessages?: number;
+  posts?: PostDto[];
+  notifications?: NotificationDto[];
+  messages?: ChatMessageDto[];
+  reads?: MessageRead[];
+}): LiveUpdate {
   return {
     now: data.now,
-    unreadCount: data.unreadCount,
-    unreadMessages: data.unreadMessages ?? 0,
-    posts: data.posts.map(toPost),
-    notifications: data.notifications.map(toNotification),
+    unreadCount: typeof data.unreadCount === "number" ? data.unreadCount : null,
+    unreadMessages: typeof data.unreadMessages === "number" ? data.unreadMessages : null,
+    posts: (data.posts ?? []).map(toPost),
+    notifications: (data.notifications ?? []).map(toNotification),
     messages: (data.messages ?? []).map(toChatMessage),
     reads: data.reads ?? [],
   };

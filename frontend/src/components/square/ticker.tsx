@@ -44,7 +44,7 @@ export function TickerTape({ onOpen }: { onOpen?: () => void }) {
     "flex w-full border-b bg-background/65 text-left text-sm shadow-[0_4px_24px_-10px_rgba(0,0,0,0.1)] backdrop-blur-2xl backdrop-saturate-150 supports-[backdrop-filter]:bg-background/50";
 
   return (
-    <div className="sticky top-0 z-50">
+    <div className="sticky top-0 z-50" data-tour="tape">
       <button
         type="button"
         onClick={onOpen}
