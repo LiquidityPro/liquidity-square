@@ -11,10 +11,13 @@ export type FilingNotice = {
 
 const LIST = "https://doclib.ngxgroup.com/_api/Web/Lists/GetByTitle('XFinancial_News')/items/";
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const HISTORY_MS = 183 * 24 * 60 * 60 * 1000;
 const NGX_HOST = /^https:\/\/([a-z0-9-]+\.)*ngxgroup\.com\//i;
 
 let memory: { filings: FilingNotice[]; expiresAt: number } | null = null;
 let inflight: Promise<FilingNotice[]> | null = null;
+let historyMemory: { filings: FilingNotice[]; expiresAt: number } | null = null;
+let historyInflight: Promise<FilingNotice[]> | null = null;
 
 export function filingKey(symbol: string, url: string) {
   return createHash("sha256").update(`${symbol}|${url}`).digest("hex");
@@ -87,8 +90,8 @@ function recordsFromXml(xml: string): Record<string, unknown>[] {
   });
 }
 
-function normalize(rows: Record<string, unknown>[], now: number): FilingNotice[] {
-  const cutoff = now - WEEK_MS;
+function normalize(rows: Record<string, unknown>[], now: number, windowMs: number): FilingNotice[] {
+  const cutoff = now - windowMs;
   const seen = new Set<string>();
   return rows
     .map(fromRecord)
@@ -96,28 +99,28 @@ function normalize(rows: Record<string, unknown>[], now: number): FilingNotice[]
     .sort((a, b) => b.filedAt.getTime() - a.filedAt.getTime());
 }
 
-async function load(now: number): Promise<FilingNotice[]> {
-  const since = new Date(now - WEEK_MS).toISOString();
+async function loadWindow(now: number, windowMs: number, top: number): Promise<FilingNotice[]> {
+  const since = new Date(now - windowMs).toISOString();
   const url = new URL(LIST);
   url.searchParams.set("$select", "URL,Created,CompanyName,CompanySymbol,Type_of_Submission");
   url.searchParams.set("$orderby", "Created desc");
   url.searchParams.set("$filter", `Created ge datetime'${since}'`);
-  url.searchParams.set("$top", "80");
+  url.searchParams.set("$top", String(top));
 
   const res = await fetch(url, {
     headers: { Accept: "application/json;odata=verbose" },
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) throw new Error(`NGX filings request failed (${res.status})`);
   const body = await res.text();
   const rows = body.trim().startsWith("<") ? recordsFromXml(body) : recordsFromJson(JSON.parse(body) as unknown);
-  return normalize(rows, now);
+  return normalize(rows, now, windowMs);
 }
 
 export function getFilings(now = Date.now()): Promise<FilingNotice[]> {
   if (memory && now < memory.expiresAt) return Promise.resolve(memory.filings);
   if (!inflight) {
-    inflight = load(now)
+    inflight = loadWindow(now, WEEK_MS, 80)
       .then((filings) => {
         memory = { filings, expiresAt: now + 5 * 60 * 1000 };
         return filings;
@@ -127,6 +130,22 @@ export function getFilings(now = Date.now()): Promise<FilingNotice[]> {
       });
   }
   return inflight;
+}
+
+/** Six months of NGX filings, for the stored Filings list. */
+export function getFilingHistory(now = Date.now()): Promise<FilingNotice[]> {
+  if (historyMemory && now < historyMemory.expiresAt) return Promise.resolve(historyMemory.filings);
+  if (!historyInflight) {
+    historyInflight = loadWindow(now, HISTORY_MS, 400)
+      .then((filings) => {
+        historyMemory = { filings, expiresAt: now + 15 * 60 * 1000 };
+        return filings;
+      })
+      .finally(() => {
+        historyInflight = null;
+      });
+  }
+  return historyInflight;
 }
 
 export function noticesFromBody(raw: unknown): FilingNotice[] {

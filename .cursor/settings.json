@@ -2,6 +2,9 @@
   "plugins": {
     "github": {
       "enabled": true
+    },
+    "vercel": {
+      "enabled": true
     }
   }
 }

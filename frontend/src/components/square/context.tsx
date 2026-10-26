@@ -86,6 +86,7 @@ const NOTIFICATION_COPY: Record<NotificationType, string> = {
   quote: "quoted your post",
   alert: "sent a price alert",
   disclosure: "filed on the NGX",
+  filings: "shared new NGX filings",
 };
 
 export const isPendingPost = (id: string) => id.startsWith(PENDING_PREFIX);
@@ -278,7 +279,7 @@ export function SquareProvider({ children }: { children: ReactNode }) {
         }
         if (document.visibilityState !== "visible" || !claimToast(item.id)) continue;
         const link = notificationLink(item);
-        const filing = item.type === "alert" || item.type === "disclosure";
+        const filing = item.type === "alert" || item.type === "disclosure" || item.type === "filings";
         toast(filing && item.summary ? item.summary : `${item.actor.name} ${NOTIFICATION_COPY[item.type]}`, {
           description: filing ? (item.symbol ? `$${item.symbol}` : undefined) : item.post?.body,
           duration: 8000,

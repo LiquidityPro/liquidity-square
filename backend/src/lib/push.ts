@@ -23,6 +23,7 @@ const COPY = {
   quote: "quoted your post",
   alert: "Price alert",
   disclosure: "New NGX filing",
+  filings: "New NGX filings",
 } as const;
 
 let configured = false;
@@ -86,6 +87,13 @@ export async function deliverPush(notificationId: string): Promise<void> {
             title: notification.summary || COPY.disclosure,
             body: "A new filing is on the NGX disclosures list.",
             url: notification.href || (notification.symbol ? `/square/${notification.symbol}` : "/square/notifications"),
+          }
+        : notification.type === "filings"
+        ? {
+            id: notification.id,
+            title: "New NGX filings",
+            body: "See the latest filings on The Square.",
+            url: notification.href || "/square/notifications?tab=filings",
           }
         : notification.type === "alert"
         ? {

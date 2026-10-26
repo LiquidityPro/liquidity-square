@@ -1,0 +1,348 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- Core Typography and Page Geometry ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% --- Mathematical & Currency Symbols ---
+\usepackage{amsmath,amssymb}
+\usepackage{textcomp}
+
+% --- Color Palette ---
+\usepackage{xcolor}
+\definecolor{primary}{RGB}{18, 52, 86}       % Deep Navy / Institutional
+\definecolor{secondary}{RGB}{30, 130, 76}    % Emerald / Financial Growth
+\definecolor{accent}{RGB}{192, 57, 43}       % Crimson / Warning
+\definecolor{darkgray}{RGB}{45, 52, 54}
+\definecolor{lightgray}{RGB}{245, 246, 250}
+\definecolor{bordergray}{RGB}{220, 221, 225}
+\definecolor{tableheader}{RGB}{236, 240, 241}
+
+% --- Tables & Longtables ---
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{array}
+
+% --- Callout Boxes ---
+\usepackage[most]{tcolorbox}
+\tcbset{
+    enhanced,
+    boxrule=0.7pt,
+    arc=4pt,
+    fonttitle=\bfseries\sffamily,
+    colback=lightgray!50,
+    colframe=bordergray,
+    coltitle=primary,
+    left=10pt, right=10pt, top=8pt, bottom=8pt
+}
+
+\newtcolorbox{actionbox}[1]{
+    colback=white,
+    colframe=primary,
+    coltitle=white,
+    title={#1},
+    colbacktitle=primary
+}
+
+\newtcolorbox{costbox}[1]{
+    colback=white,
+    colframe=secondary,
+    coltitle=white,
+    title={#1},
+    colbacktitle=secondary
+}
+
+\newtcolorbox{warningbox}[1]{
+    colback=white,
+    colframe=accent,
+    coltitle=white,
+    title={#1},
+    colbacktitle=accent
+}
+
+% --- Headers & Footers ---
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textsf{\small \textbf{Liquidity Square} $\cdot$ Production Infrastructure \& 10k User Scaling Plan}}
+\fancyhead[R]{\textsf{\small \thepage}}
+\fancyfoot[C]{\textsf{\footnotesize Confidential \& Proprietary $\cdot$ Financial Engineering \& Infrastructure Budget}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% --- Section Styling ---
+\usepackage{titlesec}
+\titleformat{\section}{\Large\bfseries\sffamily\color{primary}}{\thesection}{1em}{}[\vspace{2pt}\titlerule]
+\titleformat{\subsection}{\large\bfseries\sffamily\color{darkgray}}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\sffamily\color{darkgray}}{\thesubsubsection}{1em}{}
+
+% --- Lists ---
+\usepackage{enumitem}
+\setlist{itemsep=3pt, topsep=4pt}
+
+% --- Hyperlinks ---
+\usepackage[colorlinks=true, linkcolor=primary, citecolor=secondary, urlcolor=primary]{hyperref}
+
+% --- Document Metadata ---
+\title{
+    \vspace{-1.5cm}
+    \textbf{\Huge\sffamily Liquidity Square: Production Operations, Audio Spaces, Multimedia Architecture \& Infrastructure Cost Breakdown}\\
+    \vspace{0.4cm}
+    \Large\sffamily Comprehensive Engineering Blueprint \& Financial Budget to Scale to 10,000 Active Users by December 2026
+}
+\author{\textbf{Liquidity Pro Infrastructure \& Systems Architecture Group}}
+\date{October 2026 $\cdot$ Engineering Production Roadmap}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\noindent This document outlines the technical requirements, architectural transitions, infrastructure provisioning, and financial budget necessary to take the \textbf{Liquidity Square} codebase from its current pre-launch staging environment into a fully operational, high-availability production platform serving \textbf{10,000 active users by December 2026}. This blueprint incorporates the technical specifications requested by executive leadership: (1) implementing real-time WebRTC audio spaces within Pro Rooms (Clubhouse/X Spaces equivalent), (2) integrating end-to-end multimedia uploads (photos, audio clips, video playback, PDFs) across public posts and private Direct Messages with cryptographic access control, (3) transitioning the real-time polling architecture to high-performance event-driven streaming, and (4) delivering an itemized component-by-component operational cost model.
+\end{abstract}
+
+\vspace{0.3cm}
+\tableofcontents
+\newpage
+
+% =========================================================================
+\section{Executive Summary \& Operational Targets}
+% =========================================================================
+
+Liquidity Square is poised to capture the social and intelligence layer of African capital markets, centered on the Nigerian Exchange (NGX). Scaling the platform to \textbf{10,000 active users by December 2026} requires deliberate engineering choices to maintain sub-second market data latency, seamless media distribution, and crystal-clear real-time audio rooms while preventing cost overruns.
+
+\begin{actionbox}{Core 10k User Metrics Model (December 2026 Horizon)}
+\begin{itemize}
+    \item \textbf{Total Registered Users:} 10,000 accounts.
+    \item \textbf{Daily Active Users (DAU):} 2,500--3,500 active users per trading session (25\%--35\% engagement).
+    \item \textbf{Peak Concurrent Users (PCU):} 600--1,200 concurrent connections during high-volatility NGX trading hours (09:30--16:00 WAT).
+    \item \textbf{Pro Rooms Audio Spaces:} 2--4 concurrent live rooms daily, hosting 150--350 peak listeners each ($\sim$1,000,000 participant audio minutes/month).
+    \item \textbf{Content Velocity:} 2,500 public posts/day, 8,000 direct messages/day, 1,200 multimedia uploads/day (images, audio snippets, video clips, and research PDFs).
+    \item \textbf{Market Telemetry Ingestion:} Sub-minute synchronization of official NGX tape quotes and regulatory disclosures.
+\end{itemize}
+\end{actionbox}
+
+\begin{costbox}{Executive Cost Summary}
+\begin{itemize}
+    \item \textbf{MVP / Launch Phase (0 to 1,000 Users):} \$165 -- \$280 / month.
+    \item \textbf{Growth Phase (1,000 to 5,000 Users):} \$380 -- \$690 / month.
+    \item \textbf{10,000 User Operational Scale (December 2026):}
+    \begin{itemize}
+        \item \textbf{Lean / Optimized Configuration:} \textbf{\$745 / month} ($\approx$ \$8,940 annually).
+        \item \textbf{Enterprise / Fully Managed Configuration:} \textbf{\$1,320 / month} ($\approx$ \$15,840 annually).
+    \end{itemize}
+\end{itemize}
+\end{costbox}
+
+% =========================================================================
+\section{Current Architecture vs. Production Gap Analysis}
+% =========================================================================
+
+An in-depth inspection of the current repository identifies several critical gaps between the current prototype and a 10,000-user production system:
+
+\begin{table}[h!]
+\centering
+\small
+\begin{tabularx}{\textwidth}{l p{4.2cm} X}
+\toprule
+\textbf{Subsystem} & \textbf{Current Codebase Status} & \textbf{Production Requirement for 10k Scale} \\
+\midrule
+\textbf{Live Updates} & HTTP Polling in \texttt{live.ts} and \texttt{use-live-tracker.ts} (5--15s interval). & \textbf{Fatal Bottleneck at Scale:} 1,000 users polling every 5s creates 200 req/s $\times$ 6 DB queries = 1,200 QPS on PostgreSQL! Must transition to \textbf{Server-Sent Events (SSE) or WebSockets + Redis Pub/Sub}. \\
+\addlinespace
+\textbf{Pro Rooms} & Static UI mocks in \texttt{rooms/page.tsx} and \texttt{x-samples.ts}. & Deploy a \textbf{WebRTC Selective Forwarding Unit (SFU)} (e.g., LiveKit Cloud or Agora) with dynamic room management, speaker controls, and S3 recording. \\
+\addlinespace
+\textbf{Multimedia} & Base64 avatar upload only; media attachments disabled. & Provision \textbf{Cloudflare R2 Object Storage} with S3-compatible pre-signed upload URLs, CDN delivery, and tokenized private ACLs for DMs. \\
+\addlinespace
+\textbf{Exchange Scraper} & In-memory cache in Express server (\texttt{tape.ts}, \texttt{ngx-filings.ts}). & Decentralized instances will desynchronize. Must move cache to a \textbf{central Redis store} with a single background cron worker. \\
+\addlinespace
+\textbf{Database} & Supabase PostgreSQL with pooled connection string. & Requires \textbf{Supabase Pro / AWS RDS} with dedicated compute (2 vCPU, 4GB RAM) and automated read replicas. \\
+\bottomrule
+\end{tabularx}
+\caption{System Gap Analysis: Current Codebase vs. Scaled Production System.}
+\end{table}
+
+% =========================================================================
+\section{Detailed Infrastructure Architecture for 10,000 Users}
+% =========================================================================
+
+\subsection{Pro Rooms: Real-Time Audio Spaces Infrastructure}
+To support live audio rooms where analysts, executives, and retail traders speak and listen concurrently:
+\begin{enumerate}
+    \item \textbf{WebRTC SFU Architecture:}
+    Standard peer-to-peer (mesh) WebRTC fails beyond 4--5 participants. An enterprise SFU (Selective Forwarding Unit) receives a single audio stream from each active speaker and fans it out over optimized edge relays to hundreds or thousands of listeners.
+    \item \textbf{Technology Recommendation: LiveKit Cloud or Agora Audio Engine:}
+    \begin{itemize}
+        \item \textit{Option A (LiveKit Cloud - Recommended):} Open-source WebRTC standard with dedicated global edge infrastructure, built-in speaker/listener roles, mute management, and automatic recording egress.
+        \item \textit{Option B (Self-Hosted LiveKit on AWS EC2):} Running LiveKit SFU on an AWS \texttt{c6i.xlarge} instance reduces bandwidth costs significantly if DevOps bandwidth is available.
+    \end{itemize}
+    \item \textbf{Audio Spaces Capacity Model:}
+    \begin{itemize}
+        \item Active speakers per room: 3--6 participants ($\sim$64 kbps Opus audio).
+        \item Passive listeners per room: 100--400 participants ($\sim$48 kbps Opus audio).
+        \item Average session duration: 60 minutes.
+        \item Monthly volume: $\approx$ 1,000,000 participant audio minutes.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Multimedia Pipeline: Public Feed \& End-to-End Private DMs}
+\begin{enumerate}
+    \item \textbf{Object Storage Layer (Cloudflare R2):}
+    AWS S3 charges significant egress fees (\$0.09/GB). \textbf{Cloudflare R2 charges \$0.00 for data egress}, eliminating bandwidth shock. Storage is billed at a flat \$0.015/GB-month.
+    \item \textbf{Direct Client Upload via Pre-signed URLs:}
+    The client requests a secure upload ticket from the backend (\texttt{POST /api/media/presigned-url}). The backend generates a cryptographically signed PUT URL. The client uploads directly to R2, bypassing and protecting the Express API servers.
+    \item \textbf{Public Media (Post Attachments):}
+    Public images, chart screenshots, and video clips are cached and distributed globally through Cloudflare CDN with automated WebP/AVIF transformation.
+    \item \textbf{Private DM Media Security:}
+    Media shared in 1-on-1 direct messages is placed in a private, unlisted R2 bucket. Access is strictly mediated via time-limited signed URLs (valid for 15 minutes) issued only after verifying the user's membership in the target \texttt{Conversation}.
+\end{enumerate}
+
+\subsection{High-Performance Real-Time Streaming (SSE / WebSockets + Redis)}
+\begin{enumerate}
+    \item \textbf{Decommissioning Client Polling:} Replace the continuous \texttt{/api/live} HTTP requests with a persistent \textbf{Server-Sent Events (SSE)} or \textbf{WebSocket connection}.
+    \item \textbf{Shared Redis Message Bus:} A managed Redis cluster (Upstash Redis or AWS ElastiCache) handles pub/sub events. When an author posts, a filing arrives, or a direct message is sent, a lightweight event packet is broadcasted to connected sockets in under 50 milliseconds.
+    \item \textbf{Database Protection:} This reduces database read queries from 1,200 QPS to under 15 QPS during peak market hours.
+\end{enumerate}
+
+% =========================================================================
+\section{Itemized Production Cost Breakdown (10k User Target)}
+% =========================================================================
+
+The following tables provide an exact, itemized financial model across all functional layers required to operate Liquidity Square at 10,000 users.
+
+\subsection{Component-by-Component Infrastructure Costs}
+
+\begin{longtable}{p{4.2cm} p{5.5cm} r r}
+\toprule
+\textbf{Infrastructure Component} & \textbf{Provider \& Tier Specification} & \textbf{Lean Cost} & \textbf{Enterprise Cost} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Infrastructure Component} & \textbf{Provider \& Tier Specification} & \textbf{Lean Cost} & \textbf{Enterprise Cost} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{4}{r}{\textit{Continued on next page\dots}} \\
+\bottomrule
+\endfoot
+\bottomrule
+\endlongtable
+
+\vspace{-0.6cm}
+\begin{table}[h!]
+\centering
+\small
+\begin{tabularx}{\textwidth}{p{3.8cm} p{5.5cm} r r}
+\toprule
+\textbf{Component} & \textbf{Specification \& Provider} & \textbf{Lean Setup} & \textbf{Managed Setup} \\
+\midrule
+\textbf{Frontend Hosting} & Vercel Pro Plan (\$20/seat + edge functions) or Cloudflare Pages. & \$20 / mo & \$40 / mo \\
+\addlinespace
+\textbf{Backend API Hosting} & Containerized Express API (2x instances, 2 vCPU, 4GB RAM) on Render/Railway or AWS ECS. & \$50 / mo & \$120 / mo \\
+\addlinespace
+\textbf{PostgreSQL Database} & Supabase Pro (\$25) + Compute Add-on (Small/Medium, 2 vCPU, 4GB RAM, daily backups). & \$75 / mo & \$125 / mo \\
+\addlinespace
+\textbf{In-Memory Cache \& Pub/Sub} & Managed Redis (Upstash Serverless or AWS ElastiCache Redis) for sockets and tape cache. & \$25 / mo & \$60 / mo \\
+\addlinespace
+\textbf{Pro Rooms Audio Spaces} & WebRTC SFU: LiveKit Cloud ($\sim$1M mins) or self-hosted on AWS \texttt{c6i.xlarge} (\$130). & \$280 / mo & \$550 / mo \\
+\addlinespace
+\textbf{Multimedia Storage (R2)} & Cloudflare R2 (250GB storage, 5M Class A/B ops, \textbf{\$0 egress}). & \$15 / mo & \$35 / mo \\
+\addlinespace
+\textbf{Media Transcoding / CDN} & Cloudflare Stream (short financial video clips) + Cloudflare Images optimization. & \$30 / mo & \$80 / mo \\
+\addlinespace
+\textbf{Market Data Feed API} & NGN Market API Enterprise tier (listed company fundamentals and balance sheet sync). & \$80 / mo & \$150 / mo \\
+\addlinespace
+\textbf{Transactional Email} & Resend / Postmark (password resets, security alerts, weekly market recaps, 30k emails/mo). & \$20 / mo & \$35 / mo \\
+\addlinespace
+\textbf{Push Notifications} & WebPush (VAPID native browser push) via backend worker. & \$0 / mo & \$0 / mo \\
+\addlinespace
+\textbf{DNS, WAF \& Security} & Cloudflare Pro Plan (DDoS protection, bot mitigation, edge SSL, page rules). & \$20 / mo & \$25 / mo \\
+\addlinespace
+\textbf{Monitoring \& Sentry} & Sentry (error tracking) + Better Stack / Datadog (uptime and centralized log ingestion). & \$30 / mo & \$70 / mo \\
+\midrule
+\textbf{TOTAL MONTHLY COST} & & \textbf{\$645 / mo} & \textbf{\$1,290 / mo} \\
+\textbf{TOTAL ANNUAL COST} & & \textbf{\$7,740 / yr} & \textbf{\$15,480 / yr} \\
+\bottomrule
+\end{tabularx}
+\caption{Detailed Monthly Cost Breakdown for 10,000 Active Users by December 2026.}
+\end{table}
+
+\subsection{Phase-by-Phase Scaling Trajectory}
+
+\begin{table}[h!]
+\centering
+\small
+\begin{tabularx}{\textwidth}{l p{2.8cm} p{4.2cm} r}
+\toprule
+\textbf{Milestone Phase} & \textbf{Active User Scale} & \textbf{Primary Infrastructure Footprint} & \textbf{Estimated Budget} \\
+\midrule
+\textbf{Phase 1: Soft Launch} & 0 -- 1,000 Users & Vercel Hobby/Pro, Supabase Free/Pro, Cloudflare R2, Agora Free Tier (10k audio mins/mo). & \$120 -- \$220 / mo \\
+\addlinespace
+\textbf{Phase 2: Growth Traction} & 1,000 -- 5,000 Users & Supabase Pro, Dedicated Redis, LiveKit Starter, Cloudflare Stream, Render 2-instance API. & \$350 -- \$620 / mo \\
+\addlinespace
+\textbf{Phase 3: Scale Target} & 5,000 -- 10,000 Users & Multi-region WebRTC SFU, High-compute DB, Full R2 Media Pipeline, NGN Enterprise Data API. & \textbf{\$745 -- \$1,290 / mo} \\
+\bottomrule
+\end{tabularx}
+\caption{Cost Evolution from Launch to December 2026 Scale.}
+\end{table}
+
+% =========================================================================
+\section{Engineering Implementation Checklist to Reach Operations}
+% =========================================================================
+
+To transition the software from its present repository state to live production, the following engineering tasks must be executed:
+
+\subsection{Sprint 1: Database \& Caching Hardening}
+\begin{itemize}
+    \item Deploy a Supabase Pro or AWS RDS PostgreSQL database with transaction connection pooling.
+    \item Run all Prisma migrations (\texttt{npx prisma migrate deploy}) to generate production schema.
+    \item Provision a managed Redis cluster and build an abstraction layer (\texttt{redis.ts}) for caching NGX market quotes and session states.
+\end{itemize}
+
+\subsection{Sprint 2: Media Storage \& Access Control Layer}
+\begin{itemize}
+    \item Create Cloudflare R2 buckets: \texttt{liquidity-square-public} and \texttt{liquidity-square-private-dm}.
+    \item Implement backend endpoints \texttt{POST /api/media/upload-url} issuing presigned S3/R2 PUT signatures with MIME-type and 25MB file-size validation.
+    \item Add \texttt{MediaAttachment} relations in Prisma schema to associate files with \texttt{Post} and \texttt{DirectMessage} records.
+    \item Update frontend composer (\texttt{composer.tsx}) and DM thread ([`message-thread.tsx`](file:///c:/Users/nwaug/Desktop/liquidity-square-1/frontend/src/components/square/message-thread.tsx)) to render interactive photo galleries, video players, and audio wave previews.
+\end{itemize}
+
+\subsection{Sprint 3: Pro Rooms WebRTC Audio Spaces Integration}
+\begin{itemize}
+    \item Provision a LiveKit Cloud organization or deploy self-hosted LiveKit SFU instance.
+    \item Create backend room token generation endpoint (\texttt{POST /api/rooms/:slug/token}) providing JWT tokens with participant role metadata (\textit{Host}, \textit{Speaker}, \textit{Listener}).
+    \item Replace mock room layout in [`rooms/[slug]/page.tsx`](file:///c:/Users/nwaug/Desktop/liquidity-square-1/frontend/src/app/square/rooms/%5Bslug%5D/page.tsx) with LiveKit React Components (\texttt{@livekit/components-react}), featuring live speaker avatars, speaking indicators, hand-raising queues, and audio visualizers.
+\end{itemize}
+
+\subsection{Sprint 4: Market Telemetry Resiliency}
+\begin{itemize}
+    \item Decouple the NGX SharePoint scraper from client web requests. Establish a standalone Node.js cron worker that executes every 60 seconds during market hours, commits quotes to Redis, and broadcasts updates via SSE.
+    \item Acquire production API credentials from NGN Market and configure automated weekly company profile synchronization.
+\end{itemize}
+
+\subsection{Sprint 5: Production Deployment \& CI/CD Pipeline}
+\begin{itemize}
+    \item Configure production environment variables in Vercel and container orchestration service.
+    \item Route custom domain (\texttt{liquiditysquare.com} or \texttt{liquiditypro.com}) through Cloudflare with active SSL/TLS termination and DDoS mitigation rules.
+    \item Configure Sentry performance tracing and set up uptime heartbeat alerts.
+\end{itemize}
+
+% =========================================================================
+\section{Conclusion \& Return on Investment (ROI)}
+% =========================================================================
+
+Scaling Liquidity Square to 10,000 active users with live audio rooms, rich multimedia, and institutional market feeds requires an infrastructure commitment of approximately \textbf{\$745 to \$1,290 per month} ($\sim$\$9,000 to \$15,500 annually). 
+
+This operational cost is remarkably efficient for a capital markets social terminal. With 10,000 users engaged on the floor:
+\begin{itemize}
+    \item \textbf{Pro Room Subscriptions:} Just 100 paying institutional or retail subscribers at \$20/month generates \textbf{\$2,000/month}, immediately covering 100\% of platform infrastructure costs.
+    \item \textbf{Listed Company IR Portals:} Onboarding 5 listed corporate issuers on sponsored IR packages at \$500/month yields \textbf{\$2,500/month}.
+    \item \textbf{Broker Order-Flow Affiliate Deals:} Transaction referral integrations can generate significant transactional fee revenue as trading velocity accelerates.
+\end{itemize}
+
+The platform's technical architecture is robust, modern, and ready to be productionized along this roadmap.
+
+\end{document}

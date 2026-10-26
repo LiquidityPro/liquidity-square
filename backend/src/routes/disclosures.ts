@@ -1,6 +1,6 @@
 import { Router, Response } from "express";
 import { authenticateJwt, AuthenticatedRequest } from "../middleware/auth";
-import { syncDisclosures, sweepDisclosures } from "../lib/disclosures";
+import { filingWindow, listFilings, markFilingsSeen, syncDisclosures, sweepDisclosures } from "../lib/disclosures";
 import { getFilings, noticesFromBody } from "../lib/ngx-filings";
 
 export const disclosuresRouter = Router();
@@ -30,7 +30,32 @@ disclosuresRouter.post("/sweep", async (req: AuthenticatedRequest, res: Response
 
 disclosuresRouter.use(authenticateJwt);
 
-// POST /api/disclosures/sync — last five on the first sign-in, then only newer filings
+// GET /api/disclosures?days=7|30|183 — stored filings for the Notifications tab
+disclosuresRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const days = filingWindow(req.query.days);
+    const filings = await listFilings(days);
+    res.status(200).json({
+      filings: filings.map((filing) => ({ ...filing, filedAt: filing.filedAt.toISOString() })),
+    });
+  } catch (error) {
+    console.error("List filings error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/disclosures/seen — opening Filings clears the unread pile
+disclosuresRouter.post("/seen", async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    await markFilingsSeen(req.userId!);
+    res.status(204).end();
+  } catch (error) {
+    console.error("Mark filings seen error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/disclosures/sync — store the catalog. Individual filings are not notified.
 disclosuresRouter.post("/sync", async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const result = await syncDisclosures(req.userId!);
