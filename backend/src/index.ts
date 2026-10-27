@@ -25,12 +25,15 @@ dotenv.config({ quiet: true });
 const app = express();
 const PORT = process.env.PORT || 5000;
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
-const ADMIN_URL = process.env.ADMIN_URL || "http://localhost:3001";
+const adminOrigins = (process.env.ADMIN_URL || "http://localhost:3001")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 // Middlewares
 app.use(
   cors({
-    origin: [FRONTEND_URL, ADMIN_URL, "http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001"],
+    origin: [...new Set([FRONTEND_URL, ...adminOrigins, "http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001"])],
     credentials: true,
   })
 );
