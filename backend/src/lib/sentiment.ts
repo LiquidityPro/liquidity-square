@@ -57,6 +57,8 @@ export async function sentimentMap(symbols: string[], since: Date): Promise<Reco
     prisma.post.findMany({
       where: {
         stance: { not: null },
+        removedAt: null,
+        author: { suspendedAt: null },
         createdAt: { gte: since },
         tickers: { some: { symbol: { in: unique } } },
       },
@@ -68,8 +70,9 @@ export async function sentimentMap(symbols: string[], since: Date): Promise<Reco
     prisma.pollVote.findMany({
       where: {
         createdAt: { gte: since },
+        user: { suspendedAt: null },
         option: { stance: { not: null } },
-        poll: { post: { tickers: { some: { symbol: { in: unique } } } } },
+        poll: { post: { removedAt: null, author: { suspendedAt: null }, tickers: { some: { symbol: { in: unique } } } } },
       },
       select: {
         userId: true,

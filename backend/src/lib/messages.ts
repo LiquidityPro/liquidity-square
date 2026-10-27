@@ -63,8 +63,8 @@ export async function openConversation(me: string, other: string) {
     if (error instanceof InteractionError) throw new MessageError(error.message, error.status);
     throw error;
   }
-  const recipient = await prisma.user.findUnique({ where: { id: other }, select: { id: true } });
-  if (!recipient) throw new MessageError("User not found", 404);
+  const recipient = await prisma.user.findUnique({ where: { id: other }, select: { id: true, suspendedAt: true } });
+  if (!recipient || recipient.suspendedAt) throw new MessageError("User not found", 404);
 
   const [userAId, userBId] = pair(me, other);
   const existing = await prisma.conversation.findUnique({ where: { userAId_userBId: { userAId, userBId } } });
@@ -86,6 +86,14 @@ export async function appendMessage(conversationId: string, senderId: string, bo
   const text = body.trim();
   if (!text) throw new MessageError("Message can't be empty", 400);
   if (text.length > MESSAGE_LIMIT) throw new MessageError(`Messages are limited to ${MESSAGE_LIMIT} characters`, 400);
+
+  const parties = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    select: { userA: { select: { suspendedAt: true } }, userB: { select: { suspendedAt: true } } },
+  });
+  if (!parties || parties.userA.suspendedAt || parties.userB.suspendedAt) {
+    throw new MessageError("User not found", 404);
+  }
 
   const created = await prisma.$transaction(async (tx) => {
     const message = await tx.directMessage.create({

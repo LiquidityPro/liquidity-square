@@ -27,6 +27,23 @@ enum ReportReason {
   other
 }
 
+enum ReportStatus {
+  open
+  resolved
+}
+
+enum ModerationAction {
+  verify
+  unverify
+  remove_post
+  restore_post
+  suspend
+  restore_account
+  grant_staff
+  revoke_staff
+  dismiss_report
+}
+
 model User {
   id             String    @id @default(cuid())
   email          String    @unique
@@ -42,6 +59,12 @@ model User {
   title          String?   @db.VarChar(80)
   titleChangedAt DateTime?
   googleId       String?   @unique
+  /** Set from the staff desk. People cannot turn this on themselves. */
+  verified       Boolean   @default(false)
+  /** Staff can open the desk. Assigned from STAFF_EMAILS or by another staff member. */
+  staff          Boolean   @default(false)
+  /** Taken-down accounts cannot sign in. Cleared when the account is restored. */
+  suspendedAt    DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -68,7 +91,9 @@ model User {
   mutedBy      Mute[]        @relation("MutedBy")
   blocks       Block[]       @relation("Blocks")
   blockedBy    Block[]       @relation("BlockedBy")
-  reports      Report[]
+  reportsFiled     Report[]          @relation("ReportsFiled")
+  reportsAgainst   Report[]          @relation("ReportTarget")
+  moderationEvents ModerationEvent[]
   disclosureReceipts DisclosureReceipt[]
   drafts             Draft[]
 
@@ -78,6 +103,7 @@ model User {
   /** Set when the one "check the filings" nudge has been sent for the current unread pile. */
   filingNudgeAt    DateTime?
 
+  @@index([verified])
   @@map("users")
 }
 
@@ -121,13 +147,15 @@ model Ticker {
 
 model Post {
   id        String   @id @default(cuid())
-  body      String   @db.VarChar(280)
+  body      String    @db.VarChar(280)
   stance    Stance?
   authorId  String
   parentId  String?
   quoteId   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  /** Set when staff take a post off the floor. Cleared if they put it back. */
+  removedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   author        User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
   parent        Post?          @relation("Replies", fields: [parentId], references: [id], onDelete: Cascade)
@@ -411,14 +439,34 @@ model Report {
   userId     String?
   reason     ReportReason
   note       String?      @db.VarChar(280)
+  status     ReportStatus @default(open)
+  resolvedAt DateTime?
   createdAt  DateTime     @default(now())
 
-  reporter User  @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  reporter User  @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: Cascade)
+  reported User? @relation("ReportTarget", fields: [userId], references: [id], onDelete: SetNull)
   post     Post? @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([reporterId, createdAt])
   @@index([postId])
+  @@index([status, createdAt])
   @@map("reports")
+}
+
+model ModerationEvent {
+  id           String           @id @default(cuid())
+  actorId      String
+  action       ModerationAction
+  targetUserId String?
+  targetPostId String?
+  reportId     String?
+  note         String           @db.VarChar(280)
+  createdAt    DateTime         @default(now())
+
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@map("moderation_events")
 }
 
 model Filing {

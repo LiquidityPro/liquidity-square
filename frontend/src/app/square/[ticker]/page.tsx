@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Composer, EmptyState, PageHeader, PostFeed, SentimentBar } from "@/components/square/parts";
@@ -11,7 +11,6 @@ import {
   fetchPosts,
   fetchTicker,
   saveAlert,
-  setWatching,
   type TickerDetail,
 } from "@/components/square/api";
 import type { Post, PriceAlert } from "@/components/square/data";
@@ -41,11 +40,12 @@ const WINDOWS: { id: WindowId; label: string }[] = [
 export default function TickerRoom() {
   const params = useParams();
   const ticker = ((params?.ticker as string) ?? "").replace(/^\$/, "").toUpperCase();
-  const { token, ready, publish } = useSquare();
+  const { token, ready, publish, watchedSymbols, watchTicker, syncWatch } = useSquare();
   const { snapshot, failed: tapeFailed } = useMarketTape();
   const [detail, setDetail] = useState<TickerDetail | null>(null);
-  const [watching, setWatchingState] = useState(false);
   const [watchPending, setWatchPending] = useState(false);
+  const watchEpoch = useRef(0);
+  const watching = watchedSymbols.has(ticker);
   const [windowId, setWindowId] = useState<WindowId>("session");
 
   const fetchPage = useCallback(
@@ -57,18 +57,18 @@ export default function TickerRoom() {
 
   useEffect(() => {
     setDetail(null);
-    setWatchingState(false);
     setWindowId("session");
   }, [ticker]);
 
   useEffect(() => {
     if (!ready || !token || !ticker) return;
     let cancelled = false;
+    const epoch = watchEpoch.current;
     fetchTicker(token, ticker, snapshot?.sessionDate)
       .then((next) => {
-        if (cancelled) return;
+        if (cancelled || epoch !== watchEpoch.current) return;
         setDetail(next);
-        setWatchingState(next.watchedByMe);
+        syncWatch(ticker, next.watchedByMe);
       })
       .catch(() => {
         if (!cancelled) setDetail(null);
@@ -76,7 +76,7 @@ export default function TickerRoom() {
     return () => {
       cancelled = true;
     };
-  }, [ticker, token, ready, snapshot?.sessionDate]);
+  }, [ticker, token, ready, snapshot?.sessionDate, syncWatch]);
 
   const quote = useMemo(
     () => snapshot?.quotes.find((row) => row.symbol === ticker) ?? null,
@@ -111,14 +111,10 @@ export default function TickerRoom() {
 
   async function toggleWatch() {
     if (!token || watchPending) return;
-    const next = !watching;
-    setWatchingState(next);
+    watchEpoch.current += 1;
     setWatchPending(true);
     try {
-      const result = await setWatching(token, ticker, next);
-      setWatchingState(result.watching);
-    } catch {
-      setWatchingState(!next);
+      await watchTicker(ticker, !watching);
     } finally {
       setWatchPending(false);
     }

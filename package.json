@@ -10,6 +10,7 @@
   "scripts": {
     "dev:frontend": "npm run dev --prefix frontend",
     "dev:backend": "npm run dev --prefix backend",
+    "dev:desk": "npm run dev --prefix admin",
     "build:frontend": "npm run build --prefix frontend",
     "build:backend": "npm run build --prefix backend",
     "prisma:studio": "npm run prisma:studio --prefix backend",

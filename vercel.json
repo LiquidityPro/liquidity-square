@@ -17,6 +17,11 @@
       "root": "backend",
       "framework": "express",
       "entrypoint": "src/index.ts"
+    },
+    "admin": {
+      "root": "admin",
+      "framework": "nextjs",
+      "buildCommand": "ADMIN_BASE_PATH=/desk npx next build"
     }
   },
   "rewrites": [
@@ -32,6 +37,18 @@
       "destination": {
         "service": "backend",
         "path": "/api/:path*"
+      }
+    },
+    {
+      "source": "/desk",
+      "destination": {
+        "service": "admin"
+      }
+    },
+    {
+      "source": "/desk/:path*",
+      "destination": {
+        "service": "admin"
       }
     },
     {

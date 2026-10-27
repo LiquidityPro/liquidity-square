@@ -49,7 +49,7 @@ authRouter.post("/register", async (req: Request, res: Response): Promise<void> 
 
     // Generate JWT token
     const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, {
-      expiresIn: "7d",
+      expiresIn: "30d",
     });
 
     res.status(201).json({
@@ -104,8 +104,13 @@ authRouter.post("/login", async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
+    if (user.suspendedAt) {
+      res.status(403).json({ error: "This account has been taken down" });
+      return;
+    }
+
     const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, {
-      expiresIn: "7d",
+      expiresIn: "30d",
     });
 
     res.status(200).json({
@@ -156,8 +161,13 @@ authRouter.post("/google", async (req: Request, res: Response): Promise<void> =>
 
     console.log("✅ [Backend] Successfully synced user into Supabase:", user.id, user.email);
 
+    if (user.suspendedAt) {
+      res.status(403).json({ error: "This account has been taken down" });
+      return;
+    }
+
     const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, {
-      expiresIn: "7d",
+      expiresIn: "30d",
     });
 
     res.status(200).json({

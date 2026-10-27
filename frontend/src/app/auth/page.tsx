@@ -76,7 +76,7 @@ function AuthForm() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(false);
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -130,6 +130,7 @@ function AuthForm() {
         redirect: false,
         email,
         password,
+        remember: remember ? "1" : "0",
       });
 
       if (res?.error) {

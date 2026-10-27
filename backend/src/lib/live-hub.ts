@@ -6,11 +6,14 @@ export type LiveFrame = {
   notifications: unknown[];
   messages: unknown[];
   reads: { conversationId: string; readAt: string }[];
+  removedPostIds?: string[];
+  removedAuthorIds?: string[];
 };
 
 type Subscriber = {
   userId: string;
   send: (frame: LiveFrame) => void;
+  close?: () => void;
 };
 
 const subscribers = new Set<Subscriber>();
@@ -39,10 +42,23 @@ export function liveUserIds() {
   return [...new Set([...subscribers].map((subscriber) => subscriber.userId))];
 }
 
-export function subscribeLive(userId: string, send: (frame: LiveFrame) => void) {
-  const subscriber = { userId, send };
+export function subscribeLive(userId: string, send: (frame: LiveFrame) => void, close?: () => void) {
+  const subscriber = { userId, send, close };
   subscribers.add(subscriber);
   return () => {
     subscribers.delete(subscriber);
   };
+}
+
+/** Ends open streams for an account that was just taken down. The client reconnects and is signed out. */
+export function disconnectLive(userId: string) {
+  for (const subscriber of [...subscribers]) {
+    if (subscriber.userId !== userId) continue;
+    subscribers.delete(subscriber);
+    try {
+      subscriber.close?.();
+    } catch (error) {
+      console.error("Live close failed", error);
+    }
+  }
 }

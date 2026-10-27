@@ -38,6 +38,7 @@ searchRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<
       }),
       prisma.user.findMany({
         where: {
+          suspendedAt: null,
           ...(hidden.length ? { id: { notIn: hidden } } : {}),
           AND: terms.map((term) => ({
             OR: [
