@@ -10,6 +10,7 @@ const providers: NextAuthOptions["providers"] = [
     credentials: {
       email: { label: "Email", type: "email" },
       password: { label: "Password", type: "password" },
+      remember: { label: "Remember", type: "text" },
     },
     async authorize(credentials) {
       if (!credentials?.email || !credentials?.password) {
