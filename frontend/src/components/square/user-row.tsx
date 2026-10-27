@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Avatar, Verified } from "./avatar";
 import { cn } from "@/lib/utils";
 import { useSquare } from "./context";
-import type { Author } from "./data";
+import { authorBadge, type Author } from "./data";
 import { profilePath } from "./post-card";
 import { useCurrentAuthor } from "./use-current-author";
 
@@ -52,7 +52,7 @@ export function UserRow({ author, className }: { author: Author; className?: str
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-1 truncate font-semibold">
           <span className="truncate group-hover/row:underline">{author.name}</span>
-          {author.verified && <Verified />}
+          {authorBadge(author) && <Verified badge={authorBadge(author)!} />}
         </p>
         <p className="truncate font-mono text-xs text-muted-foreground">
           @{author.handle}

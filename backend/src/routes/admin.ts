@@ -1,4 +1,4 @@
-import { ModerationAction, Prisma, ReportStatus } from "@prisma/client";
+import { Badge, BadgeApplicationStatus, ModerationAction, Prisma, ReportStatus } from "@prisma/client";
 import { Router, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { toAuthorDto, AUTHOR_SELECT } from "../lib/author";
@@ -264,42 +264,43 @@ adminRouter.post("/reports/:id/dismiss", async (req: AuthenticatedRequest<{ id: 
   }
 });
 
+const BADGE_ACTION: Record<Badge, ModerationAction> = {
+  [Badge.none]: ModerationAction.clear_badge,
+  [Badge.member]: ModerationAction.grant_member,
+  [Badge.professional]: ModerationAction.grant_professional,
+  [Badge.distinguished]: ModerationAction.grant_distinguished,
+};
+
+function parseBadge(value: unknown): Badge | null {
+  if (value === Badge.none || value === Badge.member || value === Badge.professional || value === Badge.distinguished) {
+    return value;
+  }
+  return null;
+}
+
 async function loadAccount(id: string) {
   const user = await prisma.user.findUnique({
     where: { id },
-    select: { id: true, verified: true, staff: true, suspendedAt: true },
+    select: { id: true, badge: true, staff: true, suspendedAt: true },
   });
   if (!user) throw new DeskError("Account not found", 404);
   return user;
 }
 
-adminRouter.post("/accounts/:id/verify", async (req: AuthenticatedRequest<{ id: string }>, res: Response): Promise<void> => {
+adminRouter.post("/accounts/:id/badge", async (req: AuthenticatedRequest<{ id: string }>, res: Response): Promise<void> => {
   try {
     const { note, reportId } = cleanNote(req.body);
+    const badge = parseBadge(req.body?.badge);
+    if (!badge) throw new DeskError("Choose member, professional, distinguished, or none", 400);
     const user = await loadAccount(req.params.id);
-    if (user.verified) throw new DeskError("This account is already verified", 409);
+    if (user.badge === badge) throw new DeskError("That badge is already set", 409);
     await prisma.$transaction(async (tx) => {
-      await tx.user.update({ where: { id: user.id }, data: { verified: true } });
-      await writeEvent(tx, req.userId!, ModerationAction.verify, note, reportId, { targetUserId: user.id });
+      await tx.user.update({ where: { id: user.id }, data: { badge } });
+      await writeEvent(tx, req.userId!, BADGE_ACTION[badge], note, reportId, { targetUserId: user.id });
     });
     res.status(200).json({ ok: true });
   } catch (error) {
-    fail(res, error, "Verify error:");
-  }
-});
-
-adminRouter.post("/accounts/:id/unverify", async (req: AuthenticatedRequest<{ id: string }>, res: Response): Promise<void> => {
-  try {
-    const { note, reportId } = cleanNote(req.body);
-    const user = await loadAccount(req.params.id);
-    if (!user.verified) throw new DeskError("This account is not verified", 409);
-    await prisma.$transaction(async (tx) => {
-      await tx.user.update({ where: { id: user.id }, data: { verified: false } });
-      await writeEvent(tx, req.userId!, ModerationAction.unverify, note, reportId, { targetUserId: user.id });
-    });
-    res.status(200).json({ ok: true });
-  } catch (error) {
-    fail(res, error, "Unverify error:");
+    fail(res, error, "Set badge error:");
   }
 });
 
@@ -403,5 +404,92 @@ adminRouter.post("/posts/:id/restore", async (req: AuthenticatedRequest<{ id: st
     res.status(200).json({ ok: true });
   } catch (error) {
     fail(res, error, "Restore post error:");
+  }
+});
+
+function applicationDto(row: {
+  id: string;
+  title: string | null;
+  firm: string;
+  proofUrl: string;
+  note: string;
+  status: BadgeApplicationStatus;
+  granted: Badge | null;
+  decisionNote: string | null;
+  createdAt: Date;
+  decidedAt: Date | null;
+  user: Parameters<typeof accountDto>[0];
+}) {
+  return {
+    id: row.id,
+    title: row.title,
+    firm: row.firm,
+    proofUrl: row.proofUrl,
+    note: row.note,
+    status: row.status,
+    granted: row.granted,
+    decisionNote: row.decisionNote,
+    createdAt: row.createdAt.toISOString(),
+    decidedAt: row.decidedAt ? row.decidedAt.toISOString() : null,
+    account: accountDto(row.user),
+  };
+}
+
+adminRouter.get("/applications", async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const status =
+      req.query.status === "approved" || req.query.status === "declined"
+        ? (req.query.status as BadgeApplicationStatus)
+        : BadgeApplicationStatus.pending;
+    const rows = await prisma.badgeApplication.findMany({
+      where: { status },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: PAGE,
+      include: { user: { select: accountSelect } },
+    });
+    res.status(200).json({ applications: rows.map(applicationDto) });
+  } catch (error) {
+    fail(res, error, "List applications error:");
+  }
+});
+
+adminRouter.post("/applications/:id/decide", async (req: AuthenticatedRequest<{ id: string }>, res: Response): Promise<void> => {
+  try {
+    const { note } = cleanNote(req.body);
+    const requested = req.body?.badge;
+    const grant: typeof Badge.professional | typeof Badge.distinguished | null =
+      requested === Badge.professional || requested === Badge.distinguished ? requested : null;
+    const application = await prisma.badgeApplication.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, userId: true, status: true },
+    });
+    if (!application) throw new DeskError("Application not found", 404);
+    if (application.status !== BadgeApplicationStatus.pending) throw new DeskError("That application is already closed", 409);
+    await prisma.$transaction(async (tx) => {
+      if (grant) {
+        await tx.user.update({ where: { id: application.userId }, data: { badge: grant } });
+      }
+      await tx.badgeApplication.update({
+        where: { id: application.id },
+        data: {
+          status: grant ? BadgeApplicationStatus.approved : BadgeApplicationStatus.declined,
+          granted: grant,
+          decisionNote: note,
+          decidedById: req.userId!,
+          decidedAt: new Date(),
+        },
+      });
+      await writeEvent(
+        tx,
+        req.userId!,
+        grant ? BADGE_ACTION[grant] : ModerationAction.decline_application,
+        note,
+        null,
+        { targetUserId: application.userId },
+      );
+    });
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    fail(res, error, "Decide application error:");
   }
 });

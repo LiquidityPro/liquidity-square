@@ -37,7 +37,7 @@ export default function SquareIndex() {
   const includeRecent = useCallback(
     (post: Post) => {
       if (!isTopLevel(post)) return false;
-      if (tab === "verified") return !!post.author.verified;
+      if (tab === "verified") return post.author.badge === "professional" || post.author.badge === "distinguished" || (!post.author.badge && !!post.author.verified);
       if (tab === "watchlist") return post.tickers.some((ticker) => watchedSymbols.has(ticker));
       if (tab !== "following") return true;
       const authorId = post.author.id;

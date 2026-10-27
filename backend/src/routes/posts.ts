@@ -74,7 +74,7 @@ postsRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<v
       where.OR = [{ authorId: userId }, { author: { followers: { some: { followerId: userId } } } }];
     }
     if (feed === "verified") {
-      where.author = { verified: true };
+      where.author = { badge: { in: ["professional", "distinguished"] } };
     }
 
     await publishDueDrafts().catch((error) => console.error("Scheduled posts", error));

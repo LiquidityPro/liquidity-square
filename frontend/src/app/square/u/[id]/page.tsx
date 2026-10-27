@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, EmptyState, FollowButton, PageHeader, PostFeed, TabBar } from "@/components/square/parts";
 import { Verified } from "@/components/square/avatar";
+import { authorBadge } from "@/components/square/data";
 import { useSquare } from "@/components/square/context";
 import { fetchPosts, fetchProfile, setBlocked, setMuted } from "@/components/square/api";
 import { ReportDialog } from "@/components/square/safety";
@@ -200,7 +201,7 @@ export default function ProfilePage() {
             <>
               <h2 className="mt-3 flex items-center gap-1.5 text-xl font-bold">
                 {profile.name}
-                {profile.verified && <Verified role={profile.role} />}
+                {authorBadge(profile) && <Verified badge={authorBadge(profile)!} role={profile.role} />}
               </h2>
               <p className="font-mono text-sm text-muted-foreground">@{profile.handle}</p>
               {profile.title ? (

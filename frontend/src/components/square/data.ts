@@ -3,15 +3,24 @@
 
 export type Stance = "bull" | "bear" | null;
 
+export type Badge = "member" | "professional" | "distinguished";
+
 export type Author = {
   id?: string;
   name: string;
   handle: string;
   initials: string;
   image?: string | null;
+  badge?: Badge;
   verified?: boolean;
   role?: string;
 };
+
+export function authorBadge(author: Author): Badge | null {
+  if (author.badge) return author.badge;
+  if (author.verified) return "professional";
+  return null;
+}
 
 export type PollOption = {
   id?: string;
@@ -165,14 +174,14 @@ export type TickerSummary = {
 export const ME: Author = { name: "Nonso", handle: "nonso", initials: "NO" };
 
 const A = {
-  analyst1: { name: "Adesuwa O.", handle: "ade_equities", initials: "AO", verified: true, role: "Equity Research" },
-  fund: { name: "Tunde Capital", handle: "tunde_cap", initials: "TC", verified: true, role: "Asset Management" },
+  analyst1: { name: "Adesuwa O.", handle: "ade_equities", initials: "AO", badge: "professional", verified: true, role: "Equity Research" },
+  fund: { name: "Tunde Capital", handle: "tunde_cap", initials: "TC", badge: "professional", verified: true, role: "Asset Management" },
   retail: { name: "Chinedu M.", handle: "chinedu_invests", initials: "CM" },
   newbie: { name: "Bisi Ola", handle: "bisiola_89", initials: "BO" },
-  macro: { name: "Dr. Kalu", handle: "kalu_macro", initials: "DK", verified: true, role: "Economist" },
+  macro: { name: "Dr. Kalu", handle: "kalu_macro", initials: "DK", badge: "professional", verified: true, role: "Economist" },
   trader: { name: "Femi Trades", handle: "femi_floor", initials: "FT" },
-  analyst2: { name: "Ngozi E.", handle: "ngozi_fx", initials: "NE", verified: true, role: "FX Strategist" },
-  institutional: { name: "Lagos Partners", handle: "lagos_partners", initials: "LP", verified: true, role: "Institutional" },
+  analyst2: { name: "Ngozi E.", handle: "ngozi_fx", initials: "NE", badge: "professional", verified: true, role: "FX Strategist" },
+  institutional: { name: "Lagos Partners", handle: "lagos_partners", initials: "LP", badge: "distinguished", verified: true, role: "Institutional" },
 } satisfies Record<string, Author>;
 
 export const AUTHORS = A;
