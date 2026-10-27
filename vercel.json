@@ -35,6 +35,14 @@
       }
     },
     {
+      "source": "/desk",
+      "destination": "https://liquidity-square-desk.vercel.app/desk"
+    },
+    {
+      "source": "/desk/:path*",
+      "destination": "https://liquidity-square-desk.vercel.app/desk/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": {
         "service": "frontend"
