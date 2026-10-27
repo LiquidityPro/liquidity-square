@@ -1,6 +1,12 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { AUTHOR_SELECT, toAuthorDto } from "./author";
+import { onTheFloor } from "./visibility";
+
+const standingSelect = {
+  ...AUTHOR_SELECT,
+  suspendedAt: true,
+} satisfies Prisma.UserSelect;
 
 export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 100;
@@ -20,19 +26,19 @@ export function pollInclude(userId: string) {
 }
 
 const quoteInclude = {
-  author: { select: AUTHOR_SELECT },
+  author: { select: standingSelect },
   tickers: { select: { symbol: true } },
 } satisfies Prisma.PostInclude;
 
 export function postInclude(userId: string) {
   const mine = { where: { userId }, select: { userId: true } };
   return {
-    author: { select: AUTHOR_SELECT },
+    author: { select: standingSelect },
     tickers: { select: { symbol: true } },
     likes: mine,
     reposts: mine,
     bookmarks: mine,
-    parent: { select: { id: true, author: { select: AUTHOR_SELECT } } },
+    parent: { select: { id: true, removedAt: true, author: { select: standingSelect } } },
     quote: { include: quoteInclude },
     poll: { include: pollInclude(userId) },
     _count: { select: { likes: true, reposts: true, replies: true, bookmarks: true } },
@@ -40,6 +46,10 @@ export function postInclude(userId: string) {
 }
 
 export type PostWithRelations = Prisma.PostGetPayload<{ include: ReturnType<typeof postInclude> }>;
+
+function quoteStillUp(post: { removedAt: Date | null; author: { suspendedAt: Date | null } }) {
+  return post.removedAt == null && post.author.suspendedAt == null;
+}
 
 function toQuoteDto(post: NonNullable<PostWithRelations["quote"]>) {
   return {
@@ -81,8 +91,8 @@ export function toPostDto(post: PostWithRelations) {
     repostedByMe: post.reposts.length > 0,
     bookmarkedByMe: post.bookmarks.length > 0,
     parentId: post.parentId,
-    replyTo: post.parent ? toAuthorDto(post.parent.author) : null,
-    quote: post.quote ? toQuoteDto(post.quote) : null,
+    replyTo: post.parent && quoteStillUp(post.parent) ? toAuthorDto(post.parent.author) : null,
+    quote: post.quote && quoteStillUp(post.quote) ? toQuoteDto(post.quote) : null,
     poll: post.poll ? toPollDto(post.poll) : null,
     createdAt: post.createdAt.toISOString(),
   };
@@ -94,7 +104,7 @@ export async function listPosts(
   { cursor, limit, order = "desc" }: { cursor?: unknown; limit: number; order?: Prisma.SortOrder },
 ) {
   const posts = await prisma.post.findMany({
-    where,
+    where: { AND: [where, onTheFloor()] },
     include: postInclude(userId),
     orderBy: [{ createdAt: order }, { id: order }],
     take: limit + 1,
@@ -126,6 +136,7 @@ export async function listReposts(
   const rows = await prisma.repost.findMany({
     where: {
       userId: reposterId,
+      post: onTheFloor(),
       ...(cursorRow && cursorId
         ? {
             OR: [

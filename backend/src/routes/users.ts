@@ -6,7 +6,7 @@ import { pageSize, postInclude, toPostDto } from "../lib/post";
 import { notify, unnotify } from "../lib/notify";
 import { authenticateJwt, AuthenticatedRequest } from "../middleware/auth";
 import { FINANCE_TITLE_GROUPS, FINANCE_TITLES, TITLE_LOCK_DAYS, titleLockedUntil } from "../lib/finance-titles";
-import { InteractionError, assertCanInteract, hiddenAuthorIds, relationship } from "../lib/visibility";
+import { InteractionError, assertCanInteract, hiddenAuthorIds, onTheFloor, relationship } from "../lib/visibility";
 
 export const usersRouter = Router();
 
@@ -38,6 +38,7 @@ const RESERVED_USERNAMES = new Set([
 
 const profileSelect = {
   ...AUTHOR_SELECT,
+  suspendedAt: true,
   bio: true,
   location: true,
   website: true,
@@ -53,8 +54,8 @@ class HttpError extends Error {}
 
 async function activityCounts(userId: string) {
   const [posts, replies, reposts, likes] = await Promise.all([
-    prisma.post.count({ where: { authorId: userId, parentId: null } }),
-    prisma.post.count({ where: { authorId: userId, parentId: { not: null } } }),
+    prisma.post.count({ where: { authorId: userId, parentId: null, removedAt: null } }),
+    prisma.post.count({ where: { authorId: userId, parentId: { not: null }, removedAt: null } }),
     prisma.repost.count({ where: { userId } }),
     prisma.like.count({ where: { userId } }),
   ]);
@@ -153,7 +154,7 @@ function cleanImage(value: unknown): string | null {
 usersRouter.get("/me/following", async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const follows = await prisma.follow.findMany({
-      where: { followerId: req.userId! },
+      where: { followerId: req.userId!, following: { suspendedAt: null } },
       orderBy: { createdAt: "desc" },
       select: { following: { select: AUTHOR_SELECT } },
     });
@@ -174,7 +175,10 @@ usersRouter.get("/me/bookmarks", async (req: AuthenticatedRequest, res: Response
 
     const hidden = await hiddenAuthorIds(userId);
     const bookmarks = await prisma.bookmark.findMany({
-      where: { userId, ...(hidden.length ? { post: { authorId: { notIn: hidden } } } : {}) },
+      where: {
+        userId,
+        post: { ...onTheFloor(), ...(hidden.length ? { authorId: { notIn: hidden } } : {}) },
+      },
       orderBy: [{ createdAt: "desc" }, { postId: "desc" }],
       take: limit + 1,
       ...(typeof cursor === "string" && cursor
@@ -202,7 +206,11 @@ usersRouter.get("/suggested", async (req: AuthenticatedRequest, res: Response): 
     const hidden = await hiddenAuthorIds(userId);
 
     const users = await prisma.user.findMany({
-      where: { id: { notIn: [userId, ...hidden] }, followers: { none: { followerId: userId } } },
+      where: {
+        suspendedAt: null,
+        id: { notIn: [userId, ...hidden] },
+        followers: { none: { followerId: userId } },
+      },
       orderBy: [{ followers: { _count: "desc" } }, { createdAt: "desc" }],
       take: limit,
       select: AUTHOR_SELECT,
@@ -321,7 +329,7 @@ async function findProfileUser(key: string) {
 usersRouter.get("/:id", async (req: AuthenticatedRequest<{ id: string }>, res: Response): Promise<void> => {
   try {
     const user = await findProfileUser(req.params.id);
-    if (!user) {
+    if (!user || user.suspendedAt) {
       res.status(404).json({ error: "User not found" });
       return;
     }
@@ -340,12 +348,12 @@ usersRouter.get("/:id", async (req: AuthenticatedRequest<{ id: string }>, res: R
 });
 
 async function connectionUsers(id: string, kind: "followers" | "following") {
-  const exists = await prisma.user.count({ where: { id } });
-  if (exists === 0) return null;
+  const exists = await prisma.user.findUnique({ where: { id }, select: { suspendedAt: true } });
+  if (!exists || exists.suspendedAt) return null;
 
   if (kind === "followers") {
     const rows = await prisma.follow.findMany({
-      where: { followingId: id },
+      where: { followingId: id, follower: { suspendedAt: null } },
       orderBy: { createdAt: "desc" },
       take: 50,
       select: { follower: { select: AUTHOR_SELECT } },
@@ -354,7 +362,7 @@ async function connectionUsers(id: string, kind: "followers" | "following") {
   }
 
   const rows = await prisma.follow.findMany({
-    where: { followerId: id },
+    where: { followerId: id, following: { suspendedAt: null } },
     orderBy: { createdAt: "desc" },
     take: 50,
     select: { following: { select: AUTHOR_SELECT } },
@@ -392,8 +400,8 @@ usersRouter.post("/:id/follow", async (req: AuthenticatedRequest<{ id: string }>
       return;
     }
 
-    const target = await prisma.user.count({ where: { id: followingId } });
-    if (target === 0) {
+    const target = await prisma.user.findUnique({ where: { id: followingId }, select: { suspendedAt: true } });
+    if (!target || target.suspendedAt) {
       res.status(404).json({ error: "User not found" });
       return;
     }

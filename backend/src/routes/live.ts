@@ -5,7 +5,7 @@ import { notificationSelect, toNotificationDto } from "../lib/notification-dto";
 import { postInclude, toPostDto } from "../lib/post";
 import { authenticateJwt, AuthenticatedRequest } from "../middleware/auth";
 import { toMessageDto, unreadMessageCount } from "../lib/messages";
-import { hiddenAuthorIds } from "../lib/visibility";
+import { hiddenAuthorIds, onTheFloor } from "../lib/visibility";
 import { subscribeLive, type LiveFrame } from "../lib/live-hub";
 
 export const liveRouter = Router();
@@ -32,6 +32,7 @@ async function loadSnapshot(userId: string, sinceRaw: unknown): Promise<LiveFram
     unreadMessageCount(userId),
     prisma.post.findMany({
       where: {
+        ...onTheFloor(),
         createdAt: { gt: after, lte: now },
         ...(hidden.length ? { authorId: { notIn: hidden } } : {}),
       },
@@ -98,10 +99,15 @@ liveRouter.get("/stream", async (req: AuthenticatedRequest, res: Response): Prom
 
   let live = false;
   const waiting: LiveFrame[] = [];
-  const unsubscribe = subscribeLive(userId, (frame) => {
-    if (live) writeFrame(res, frame);
-    else waiting.push(frame);
-  });
+  let closeStream = () => {};
+  const unsubscribe = subscribeLive(
+    userId,
+    (frame) => {
+      if (live) writeFrame(res, frame);
+      else waiting.push(frame);
+    },
+    () => closeStream(),
+  );
 
   const heartbeat = setInterval(() => {
     if (!res.writableEnded && !res.destroyed) res.write(": ping\n\n");
@@ -116,6 +122,7 @@ liveRouter.get("/stream", async (req: AuthenticatedRequest, res: Response): Prom
     unsubscribe();
     if (!res.writableEnded) res.end();
   };
+  closeStream = close;
   req.on("close", close);
 
   try {

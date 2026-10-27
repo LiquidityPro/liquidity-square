@@ -18,17 +18,22 @@ import { ensureListedTickers } from "./lib/listed-tickers";
 import { startDisclosurePoller } from "./lib/disclosures";
 import { startDraftPoller } from "./lib/drafts";
 import { draftsRouter } from "./routes/drafts";
+import { adminRouter } from "./routes/admin";
 
 dotenv.config({ quiet: true });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+const adminOrigins = (process.env.ADMIN_URL || "http://localhost:3001")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 // Middlewares
 app.use(
   cors({
-    origin: [FRONTEND_URL, "http://localhost:3000", "http://127.0.0.1:3000"],
+    origin: [...new Set([FRONTEND_URL, ...adminOrigins, "http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001"])],
     credentials: true,
   })
 );
@@ -61,8 +66,9 @@ app.use("/api/alerts", alertsRouter);
 app.use("/api/safety", safetyRouter);
 app.use("/api/disclosures", disclosuresRouter);
 app.use("/api/drafts", draftsRouter);
+app.use("/api/admin", adminRouter);
 
-void ensureListedTickers();
+void ensureListedTickers().catch((error) => console.error("Listed ticker sync failed", error));
 if (!process.env.VERCEL) {
   startDisclosurePoller();
   startDraftPoller();

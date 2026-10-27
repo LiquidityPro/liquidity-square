@@ -8,6 +8,7 @@ export const AUTHOR_SELECT = {
   image: true,
   username: true,
   title: true,
+  verified: true,
 } satisfies Prisma.UserSelect;
 
 type AuthorRow = Prisma.UserGetPayload<{ select: typeof AUTHOR_SELECT }>;
@@ -19,6 +20,7 @@ export type AuthorDto = {
   initials: string;
   image: string | null;
   title: string | null;
+  verified: boolean;
 };
 
 // Stored username wins. Accounts that have not chosen one yet still show the email's local part.
@@ -40,5 +42,6 @@ export function toAuthorDto(user: AuthorRow): AuthorDto {
     initials,
     image: user.image,
     title: user.title,
+    verified: user.verified,
   };
 }

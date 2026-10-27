@@ -1,4 +1,10 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
+
+/** Posts still on the floor: not removed by staff, and the author has not been taken down. */
+export function onTheFloor(): Prisma.PostWhereInput {
+  return { removedAt: null, author: { suspendedAt: null } };
+}
 
 export class InteractionError extends Error {
   constructor(

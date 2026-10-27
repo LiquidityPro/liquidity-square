@@ -35,6 +35,15 @@ async function viewersHiding(authorId: string, viewerIds: string[]) {
   return hidden;
 }
 
+export function publishLiveRemoval(removed: { postIds?: string[]; authorIds?: string[] }) {
+  const removedPostIds = removed.postIds ?? [];
+  const removedAuthorIds = removed.authorIds ?? [];
+  if (removedPostIds.length === 0 && removedAuthorIds.length === 0) return;
+  if (liveUserIds().length === 0) return;
+  const now = new Date().toISOString();
+  liveFanout(() => frame(now, { removedPostIds, removedAuthorIds }));
+}
+
 export async function publishLivePost(post: ReturnType<typeof toPostDto>) {
   const viewers = liveUserIds();
   if (viewers.length === 0) return;

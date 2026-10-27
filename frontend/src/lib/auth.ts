@@ -42,6 +42,7 @@ const providers: NextAuthOptions["providers"] = [
             image: data.user.image,
             username: data.user.username ?? null,
             token: data.token,
+            remember: credentials.remember !== "0",
           };
         }
 
@@ -61,6 +62,12 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     })
   );
 }
+
+/** Kept until the person signs out. A persistent cookie survives closing the app. */
+const SESSION_MAX_AGE = 30 * 24 * 60 * 60;
+const secureCookie = process.env.NEXTAUTH_URL
+  ? process.env.NEXTAUTH_URL.startsWith("https://")
+  : process.env.NODE_ENV === "production";
 
 function isUsableAccessToken(value: unknown): value is string {
   if (typeof value !== "string" || value.length === 0) return false;
@@ -133,6 +140,7 @@ export const authOptions: NextAuthOptions = {
         token.lastName = (user as any).lastName;
         token.username = (user as any).username ?? null;
         token.token = (user as any).token;
+        token.remember = (user as any).remember !== false;
       }
       if (trigger === "update" && session && typeof session === "object") {
         const next = session as { name?: string; image?: string | null; username?: string };
@@ -170,7 +178,23 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 7 * 24 * 60 * 60, // 7 days
+    maxAge: SESSION_MAX_AGE,
+    updateAge: 24 * 60 * 60,
+  },
+  jwt: {
+    maxAge: SESSION_MAX_AGE,
+  },
+  cookies: {
+    sessionToken: {
+      name: `${secureCookie ? "__Secure-" : ""}next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: secureCookie,
+        maxAge: SESSION_MAX_AGE,
+      },
+    },
   },
   pages: {
     signIn: "/auth",

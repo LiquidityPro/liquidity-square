@@ -22,6 +22,7 @@ type AuthorDto = {
   initials: string;
   image: string | null;
   title?: string | null;
+  verified?: boolean;
 };
 
 type QuoteDto = {
@@ -112,6 +113,7 @@ function toAuthor(dto: AuthorDto): Author {
     initials: dto.initials,
     image: dto.image,
     role: dto.title ?? undefined,
+    verified: dto.verified,
   };
 }
 
@@ -168,7 +170,7 @@ function toPage({ posts, nextCursor }: PageDto): PostPage {
 export type PostFilters = {
   ticker?: string;
   sector?: string;
-  feed?: "following" | "watchlist";
+  feed?: "following" | "watchlist" | "verified";
   author?: string;
   likedBy?: string;
   repostedBy?: string;
@@ -546,6 +548,8 @@ export type LiveUpdate = {
   notifications: SquareNotification[];
   messages: ChatMessage[];
   reads: MessageRead[];
+  removedPostIds: string[];
+  removedAuthorIds: string[];
 };
 
 export function parseLiveUpdate(data: {
@@ -556,6 +560,8 @@ export function parseLiveUpdate(data: {
   notifications?: NotificationDto[];
   messages?: ChatMessageDto[];
   reads?: MessageRead[];
+  removedPostIds?: string[];
+  removedAuthorIds?: string[];
 }): LiveUpdate {
   return {
     now: data.now,
@@ -565,6 +571,8 @@ export function parseLiveUpdate(data: {
     notifications: (data.notifications ?? []).map(toNotification),
     messages: (data.messages ?? []).map(toChatMessage),
     reads: data.reads ?? [],
+    removedPostIds: data.removedPostIds ?? [],
+    removedAuthorIds: data.removedAuthorIds ?? [],
   };
 }
 

@@ -90,7 +90,7 @@ async function publishDraft(draft: DraftRow) {
 /** Turns due scheduled drafts into posts. Safe to run from more than one server. */
 export async function publishDueDrafts() {
   const due = await prisma.draft.findMany({
-    where: { scheduledFor: { lte: new Date() } },
+    where: { scheduledFor: { lte: new Date() }, author: { suspendedAt: null } },
     orderBy: { scheduledFor: "asc" },
     take: 20,
   });

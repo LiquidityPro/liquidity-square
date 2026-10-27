@@ -19,9 +19,11 @@ import {
   createPost,
   deletePost as deletePostRequest,
   fetchFollowing,
+  fetchWatchlist,
   markNotificationsRead,
   setFollowing,
   setReaction,
+  setWatching,
   syncDisclosures,
   voteOnPoll,
   type ChatMessage,
@@ -61,6 +63,13 @@ type SquareContextType = {
   /** IDs of users the current user follows. */
   following: Set<string>;
   toggleFollow: (author: Author) => void;
+  /** Tickers the current user follows. */
+  watchedSymbols: Set<string>;
+  /** Bumps when the watchlist changes so feeds refetch. */
+  watchRevision: number;
+  watchTicker: (symbol: string, on: boolean) => Promise<void>;
+  /** Record a follow state learned from the server, without writing it again. */
+  syncWatch: (symbol: string, on: boolean) => void;
   unreadCount: number;
   /** Conversations with a message you have not opened. */
   unreadMessages: number;
@@ -119,6 +128,11 @@ export function SquareProvider({ children }: { children: ReactNode }) {
   const [incomingIds, setIncomingIds] = useState<string[]>([]);
   const [incomingNotifications, setIncomingNotifications] = useState<SquareNotification[]>([]);
   const [following, setFollowingIds] = useState<Set<string>>(() => new Set());
+  const [watchedSymbols, setWatchedSymbols] = useState<Set<string>>(() => new Set());
+  const [watchRevision, setWatchRevision] = useState(0);
+  const pendingWatches = useRef(new Set<string>());
+  const watchedSymbolsRef = useRef(watchedSymbols);
+  watchedSymbolsRef.current = watchedSymbols;
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [incomingMessages, setIncomingMessages] = useState<ChatMessage[]>([]);
@@ -143,6 +157,43 @@ export function SquareProvider({ children }: { children: ReactNode }) {
     };
   }, [token]);
 
+  const commitWatched = useCallback((incoming: Set<string>) => {
+    setWatchedSymbols((prev) => {
+      if (prev.size === incoming.size && [...incoming].every((symbol) => prev.has(symbol))) return prev;
+      setWatchRevision((revision) => revision + 1);
+      return incoming;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    const load = () => {
+      fetchWatchlist(token)
+        .then((rows) => {
+          if (cancelled) return;
+          const next = new Set(rows.map((row) => row.symbol));
+          for (const symbol of pendingWatches.current) {
+            if (watchedSymbolsRef.current.has(symbol)) next.add(symbol);
+            else next.delete(symbol);
+          }
+          commitWatched(next);
+        })
+        .catch((err) => console.error("Failed to load watchlist", err));
+    };
+    load();
+    const onShow = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    window.addEventListener("pageshow", load);
+    document.addEventListener("visibilitychange", onShow);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("pageshow", load);
+      document.removeEventListener("visibilitychange", onShow);
+    };
+  }, [token, commitWatched]);
+
   useEffect(() => {
     if (token) return;
     setUnreadCount(0);
@@ -151,6 +202,8 @@ export function SquareProvider({ children }: { children: ReactNode }) {
     setIncomingNotifications([]);
     setIncomingMessages([]);
     setPeerReads({});
+    setWatchedSymbols(new Set());
+    setWatchRevision(0);
   }, [token]);
 
   const cachePosts = useCallback((posts: Post[]) => {
@@ -248,6 +301,25 @@ export function SquareProvider({ children }: { children: ReactNode }) {
     (update: LiveUpdate, epochAtStart: number) => {
       const baseline = !livePrimed.current;
       livePrimed.current = true;
+      const removedPosts = new Set(update.removedPostIds);
+      const removedAuthors = new Set(update.removedAuthorIds);
+      if (removedPosts.size > 0 || removedAuthors.size > 0) {
+        const gone = (id: string) =>
+          removedPosts.has(id) || (!!postsRef.current[id]?.author.id && removedAuthors.has(postsRef.current[id].author.id!));
+        setRecentIds((prev) => prev.filter((id) => !gone(id)));
+        setIncomingIds((prev) => prev.filter((id) => !gone(id)));
+        setPostsById((prev) => {
+          let changed = false;
+          const next = { ...prev };
+          for (const [id, post] of Object.entries(prev)) {
+            if (removedPosts.has(id) || (post.author.id && removedAuthors.has(post.author.id))) {
+              delete next[id];
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+      }
       startTransition(() => {
         if (update.posts.length > 0) addIncomingPosts(update.posts);
         if (update.notifications.length > 0) addIncomingNotifications(update.notifications);
@@ -514,6 +586,55 @@ export function SquareProvider({ children }: { children: ReactNode }) {
     [token, me.id],
   );
 
+  const syncWatch = useCallback((symbol: string, on: boolean) => {
+    const key = symbol.replace(/^\$/, "").toUpperCase();
+    if (pendingWatches.current.has(key)) return;
+    setWatchedSymbols((prev) => {
+      if (prev.has(key) === on) return prev;
+      const next = new Set(prev);
+      if (on) next.add(key);
+      else next.delete(key);
+      setWatchRevision((revision) => revision + 1);
+      return next;
+    });
+  }, []);
+
+  const watchTicker = useCallback(
+    async (symbol: string, on: boolean) => {
+      if (!token) return;
+      const key = symbol.replace(/^\$/, "").toUpperCase();
+      pendingWatches.current.add(key);
+      setWatchedSymbols((prev) => {
+        const next = new Set(prev);
+        if (on) next.add(key);
+        else next.delete(key);
+        return next;
+      });
+      setWatchRevision((revision) => revision + 1);
+      try {
+        const result = await setWatching(token, key, on);
+        setWatchedSymbols((prev) => {
+          const next = new Set(prev);
+          if (result.watching) next.add(key);
+          else next.delete(key);
+          return next;
+        });
+      } catch (err) {
+        setWatchedSymbols((prev) => {
+          const next = new Set(prev);
+          if (on) next.delete(key);
+          else next.add(key);
+          return next;
+        });
+        setWatchRevision((revision) => revision + 1);
+        toast.error(err instanceof Error ? err.message : `Couldn't ${on ? "follow" : "unfollow"} $${key}`);
+      } finally {
+        pendingWatches.current.delete(key);
+      }
+    },
+    [token],
+  );
+
   const markAllRead = useCallback(() => {
     if (!token) return;
     readEpoch.current += 1;
@@ -540,6 +661,10 @@ export function SquareProvider({ children }: { children: ReactNode }) {
       toggleBookmark,
       following,
       toggleFollow,
+      watchedSymbols,
+      watchRevision,
+      watchTicker,
+      syncWatch,
       unreadCount,
       unreadMessages,
       setUnreadMessages,
@@ -567,6 +692,10 @@ export function SquareProvider({ children }: { children: ReactNode }) {
       toggleBookmark,
       following,
       toggleFollow,
+      watchedSymbols,
+      watchRevision,
+      watchTicker,
+      syncWatch,
       unreadCount,
       unreadMessages,
       markAllRead,

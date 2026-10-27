@@ -1,10 +1,10 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Logo } from "@/components/site";
 import { MobileMenuButton } from "@/components/square/mobile-menu";
 import { Composer, EmptyState, PostFeed, TabBar } from "@/components/square/parts";
 import { useSquare } from "@/components/square/context";
-import { fetchPosts, fetchWatchlist } from "@/components/square/api";
+import { fetchPosts } from "@/components/square/api";
 import type { Post } from "@/components/square/data";
 import { useCurrentAuthor } from "@/components/square/use-current-author";
 import { usePostList } from "@/components/square/use-post-list";
@@ -19,53 +19,37 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 const isTopLevel = (p: Post) => !p.parentId;
-const isVerified = (p: Post) => !!p.author.verified;
 
 export default function SquareIndex() {
-  const { publish, following, token, ready } = useSquare();
+  const { publish, following, watchedSymbols, watchRevision } = useSquare();
   const me = useCurrentAuthor();
   const [tab, setTab] = useState<Tab>("for-you");
-  const [watched, setWatched] = useState<Set<string>>(new Set());
   const composerRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    if (!ready || !token) return;
-    let cancelled = false;
-    fetchWatchlist(token)
-      .then((rows) => {
-        if (!cancelled) setWatched(new Set(rows.map((row) => row.symbol)));
-      })
-      .catch(() => {
-        if (!cancelled) setWatched(new Set());
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [token, ready, tab]);
 
   const fetchPage = useCallback(
     (authToken: string, cursor: string | null) =>
       fetchPosts(authToken, {
         cursor,
-        feed: tab === "following" ? "following" : tab === "watchlist" ? "watchlist" : undefined,
+        feed: tab === "following" ? "following" : tab === "watchlist" ? "watchlist" : tab === "verified" ? "verified" : undefined,
       }),
     [tab],
   );
   const includeRecent = useCallback(
     (post: Post) => {
       if (!isTopLevel(post)) return false;
-      if (tab === "watchlist") return post.tickers.some((ticker) => watched.has(ticker));
+      if (tab === "verified") return !!post.author.verified;
+      if (tab === "watchlist") return post.tickers.some((ticker) => watchedSymbols.has(ticker));
       if (tab !== "following") return true;
       const authorId = post.author.id;
       return authorId === me.id || (!!authorId && following.has(authorId));
     },
-    [tab, me.id, following, watched],
+    [tab, me.id, following, watchedSymbols],
   );
   const list = usePostList({
-    key: tab === "following" ? "home:following" : tab === "watchlist" ? "home:watchlist" : "home:all",
+    key:
+      tab === "following" ? "home:following" : tab === "watchlist" ? `home:watchlist:${watchRevision}` : tab === "verified" ? "home:verified" : "home:all",
     fetchPage,
     includeRecent,
-    keep: tab === "verified" ? isVerified : undefined,
   });
 
   return (

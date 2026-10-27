@@ -41,7 +41,7 @@ function parsePoll(raw: unknown): PollOptionInput[] | null | "invalid" {
   return parsed;
 }
 
-// GET /api/posts?ticker=DANGCEM&sector=&feed=following|watchlist&author=<userId>&likedBy=<userId>&repostedBy=<userId>&replies=1&cursor=<postId>&limit=50
+// GET /api/posts?ticker=DANGCEM&sector=&feed=following|watchlist|verified&author=<userId>&likedBy=<userId>&repostedBy=<userId>&replies=1&cursor=<postId>&limit=50
 postsRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.userId!;
@@ -72,6 +72,9 @@ postsRouter.get("/", async (req: AuthenticatedRequest, res: Response): Promise<v
     }
     if (feed === "following") {
       where.OR = [{ authorId: userId }, { author: { followers: { some: { followerId: userId } } } }];
+    }
+    if (feed === "verified") {
+      where.author = { verified: true };
     }
 
     await publishDueDrafts().catch((error) => console.error("Scheduled posts", error));
@@ -127,9 +130,12 @@ postsRouter.post("/", async (req: AuthenticatedRequest, res: Response): Promise<
     }
 
     const parent = parentId
-      ? await prisma.post.findUnique({ where: { id: parentId }, select: { id: true, authorId: true } })
+      ? await prisma.post.findUnique({
+          where: { id: parentId },
+          select: { id: true, authorId: true, removedAt: true, author: { select: { suspendedAt: true } } },
+        })
       : null;
-    if (parentId && !parent) {
+    if (parentId && (!parent || parent.removedAt || parent.author.suspendedAt)) {
       res.status(404).json({ error: "The post you're replying to no longer exists" });
       return;
     }
@@ -137,10 +143,10 @@ postsRouter.post("/", async (req: AuthenticatedRequest, res: Response): Promise<
     const quoted = quoteId
       ? await prisma.post.findUnique({
           where: { id: quoteId },
-          select: { id: true, authorId: true, tickers: { select: { symbol: true } } },
+          select: { id: true, authorId: true, removedAt: true, author: { select: { suspendedAt: true } }, tickers: { select: { symbol: true } } },
         })
       : null;
-    if (quoteId && !quoted) {
+    if (quoteId && (!quoted || quoted.removedAt || quoted.author.suspendedAt)) {
       res.status(404).json({ error: "The post you're quoting no longer exists" });
       return;
     }
@@ -211,7 +217,7 @@ postsRouter.get("/:id", async (req: AuthenticatedRequest<{ id: string }>, res: R
     const userId = req.userId!;
     const post = await prisma.post.findUnique({ where: { id: req.params.id }, include: postInclude(userId) });
 
-    if (!post || (await blockedAuthorIds(userId)).includes(post.authorId)) {
+    if (!post || post.removedAt || post.author.suspendedAt || (await blockedAuthorIds(userId)).includes(post.authorId)) {
       res.status(404).json({ error: "Post not found" });
       return;
     }
@@ -219,8 +225,9 @@ postsRouter.get("/:id", async (req: AuthenticatedRequest<{ id: string }>, res: R
     const parent = post.parentId
       ? await prisma.post.findUnique({ where: { id: post.parentId }, include: postInclude(userId) })
       : null;
+    const parentVisible = parent && parent.removedAt == null && parent.author.suspendedAt == null;
 
-    res.status(200).json({ post: toPostDto(post), parent: parent ? toPostDto(parent) : null });
+    res.status(200).json({ post: toPostDto(post), parent: parentVisible ? toPostDto(parent) : null });
   } catch (error) {
     console.error("Get post error:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -246,8 +253,11 @@ postsRouter.get("/:id/replies", async (req: AuthenticatedRequest<{ id: string }>
 });
 
 async function listEngagement(kind: "like" | "repost", postId: string, viewerId: string) {
-  const post = await prisma.post.findUnique({ where: { id: postId }, select: { authorId: true } });
-  if (!post || (await blockedAuthorIds(viewerId)).includes(post.authorId)) return null;
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    select: { authorId: true, removedAt: true, author: { select: { suspendedAt: true } } },
+  });
+  if (!post || post.removedAt || post.author.suspendedAt || (await blockedAuthorIds(viewerId)).includes(post.authorId)) return null;
 
   const hidden = await hiddenAuthorIds(viewerId);
   const where = { postId, ...(hidden.length ? { userId: { notIn: hidden } } : {}) };
@@ -370,8 +380,11 @@ function reactionHandler(kind: Reaction, on: boolean) {
       const userId = req.userId!;
       const postId = req.params.id;
 
-      const post = await prisma.post.findUnique({ where: { id: postId }, select: { authorId: true } });
-      if (!post || (await blockedAuthorIds(userId)).includes(post.authorId)) {
+      const post = await prisma.post.findUnique({
+        where: { id: postId },
+        select: { authorId: true, removedAt: true, author: { select: { suspendedAt: true } } },
+      });
+      if (!post || post.removedAt || post.author.suspendedAt || (await blockedAuthorIds(userId)).includes(post.authorId)) {
         res.status(404).json({ error: "Post not found" });
         return;
       }
@@ -408,9 +421,17 @@ postsRouter.post("/:id/vote", async (req: AuthenticatedRequest<{ id: string }>, 
 
     const poll = await prisma.poll.findUnique({
       where: { postId: req.params.id },
-      select: { id: true, options: { select: { id: true } }, post: { select: { authorId: true } } },
+      select: {
+        id: true,
+        options: { select: { id: true } },
+        post: { select: { authorId: true, removedAt: true, author: { select: { suspendedAt: true } } } },
+      },
     });
-    if (!poll || !poll.options.some((option) => option.id === optionId)) {
+    if (!poll || poll.post.removedAt || poll.post.author.suspendedAt) {
+      res.status(404).json({ error: "Post not found" });
+      return;
+    }
+    if (!poll.options.some((option) => option.id === optionId)) {
       res.status(404).json({ error: "That poll option no longer exists" });
       return;
     }
