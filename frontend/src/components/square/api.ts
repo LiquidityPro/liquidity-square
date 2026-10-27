@@ -305,7 +305,8 @@ export function setReaction(token: string, postId: string, kind: Reaction, on: b
 type ProfileDto = AuthorDto & Omit<Profile, keyof Author>;
 
 function toProfile(profile: ProfileDto): Profile {
-  return { ...profile, ...toAuthor(profile), id: profile.id };
+  const { badge: _badge, ...rest } = profile;
+  return { ...rest, ...toAuthor(profile), id: profile.id };
 }
 
 export type BadgeApplication = {
