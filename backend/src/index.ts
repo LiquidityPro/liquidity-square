@@ -29,11 +29,26 @@ const adminOrigins = (process.env.ADMIN_URL || "http://localhost:3001")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
+const deskOrigins = [
+  "https://liquidity-square-desk.vercel.app",
+  "https://thesquare.ng",
+  "https://www.thesquare.ng",
+];
 
 // Middlewares
 app.use(
   cors({
-    origin: [...new Set([FRONTEND_URL, ...adminOrigins, "http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001"])],
+    origin: [
+      ...new Set([
+        FRONTEND_URL,
+        ...adminOrigins,
+        ...deskOrigins,
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+      ]),
+    ],
     credentials: true,
   })
 );
