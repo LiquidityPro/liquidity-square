@@ -42,6 +42,24 @@ enum ModerationAction {
   grant_staff
   revoke_staff
   dismiss_report
+  grant_member
+  grant_professional
+  grant_distinguished
+  clear_badge
+  decline_application
+}
+
+enum Badge {
+  none
+  member
+  professional
+  distinguished
+}
+
+enum BadgeApplicationStatus {
+  pending
+  approved
+  declined
 }
 
 model User {
@@ -59,8 +77,8 @@ model User {
   title          String?   @db.VarChar(80)
   titleChangedAt DateTime?
   googleId       String?   @unique
-  /** Set from the staff desk. People cannot turn this on themselves. */
-  verified       Boolean   @default(false)
+  /** Member is bought later. Professional and distinguished are granted by the desk. */
+  badge          Badge     @default(none)
   /** Staff can open the desk. Assigned from STAFF_EMAILS or by another staff member. */
   staff          Boolean   @default(false)
   /** Taken-down accounts cannot sign in. Cleared when the account is restored. */
@@ -94,6 +112,7 @@ model User {
   reportsFiled     Report[]          @relation("ReportsFiled")
   reportsAgainst   Report[]          @relation("ReportTarget")
   moderationEvents ModerationEvent[]
+  badgeApplications BadgeApplication[]
   disclosureReceipts DisclosureReceipt[]
   drafts             Draft[]
 
@@ -103,8 +122,29 @@ model User {
   /** Set when the one "check the filings" nudge has been sent for the current unread pile. */
   filingNudgeAt    DateTime?
 
-  @@index([verified])
+  @@index([badge])
   @@map("users")
+}
+
+model BadgeApplication {
+  id           String                 @id @default(cuid())
+  userId       String
+  title        String?                @db.VarChar(80)
+  firm         String                 @db.VarChar(80)
+  proofUrl     String                 @db.VarChar(300)
+  note         String                 @db.VarChar(280)
+  status       BadgeApplicationStatus @default(pending)
+  granted      Badge?
+  decisionNote String?                @db.VarChar(280)
+  decidedById  String?
+  decidedAt    DateTime?
+  createdAt    DateTime               @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@map("badge_applications")
 }
 
 model Ticker {

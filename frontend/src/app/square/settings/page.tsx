@@ -9,6 +9,7 @@ import {
   LuLock as Lock,
   LuMail as Mail,
   LuShield as Shield,
+  LuBadgeCheck as BadgeCheck,
   LuUser as User,
   LuUsers as Users,
   LuList as List,
@@ -42,6 +43,14 @@ export default function SettingsPage() {
           <span className="min-w-0 flex-1">
             <span className="block font-semibold">Edit profile</span>
             <span className="block truncate text-sm text-muted-foreground">Name, username, title, bio, photo</span>
+          </span>
+          <ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
+        </Link>
+        <Link href="/square/settings/badge" className="flex items-center gap-3 px-4 py-4 transition-colors hover:bg-card/60">
+          <BadgeCheck className="size-5" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">Professional badge</span>
+            <span className="block truncate text-sm text-muted-foreground">Apply for a green badge. Gold is chosen by the desk.</span>
           </span>
           <ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
         </Link>

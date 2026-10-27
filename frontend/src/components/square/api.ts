@@ -22,6 +22,7 @@ type AuthorDto = {
   initials: string;
   image: string | null;
   title?: string | null;
+  badge?: "none" | "member" | "professional" | "distinguished";
   verified?: boolean;
 };
 
@@ -113,6 +114,7 @@ function toAuthor(dto: AuthorDto): Author {
     initials: dto.initials,
     image: dto.image,
     role: dto.title ?? undefined,
+    badge: dto.badge && dto.badge !== "none" ? dto.badge : undefined,
     verified: dto.verified,
   };
 }
@@ -304,6 +306,40 @@ type ProfileDto = AuthorDto & Omit<Profile, keyof Author>;
 
 function toProfile(profile: ProfileDto): Profile {
   return { ...profile, ...toAuthor(profile), id: profile.id };
+}
+
+export type BadgeApplication = {
+  id: string;
+  title: string | null;
+  firm: string;
+  proofUrl: string;
+  note: string;
+  status: "pending" | "approved" | "declined";
+  granted: "member" | "professional" | "distinguished" | "none" | null;
+  decisionNote: string | null;
+  createdAt: string;
+  decidedAt: string | null;
+};
+
+export async function fetchBadgeApplication(token: string): Promise<{
+  badge: "none" | "member" | "professional" | "distinguished";
+  title: string | null;
+  application: BadgeApplication | null;
+}> {
+  return request("/users/me/badge-application", token);
+}
+
+export async function submitBadgeApplication(
+  token: string,
+  input: { firm: string; proofUrl: string; note: string },
+): Promise<BadgeApplication> {
+  const { application } = await request<{ application: BadgeApplication }>(
+    "/users/me/badge-application",
+    token,
+    "POST",
+    input,
+  );
+  return application;
 }
 
 export async function fetchProfile(token: string, id: string): Promise<Profile> {

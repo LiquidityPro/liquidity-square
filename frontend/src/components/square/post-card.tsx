@@ -33,7 +33,7 @@ import { UserRow } from "./user-row";
 import { Composer } from "./composer";
 import { ReportDialog } from "./safety";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { compact, type Author, type Post, type Stance } from "./data";
+import { authorBadge, compact, type Author, type Post, type Stance } from "./data";
 import { useCurrentAuthor } from "./use-current-author";
 import {
   DropdownMenu,
@@ -222,7 +222,7 @@ export function PostCard({ post, onTicker, variant = "feed", threadLine, onReply
           <div className="min-w-0 flex-1">
             <AuthorLink author={post.author} className="flex items-center gap-1.5 font-semibold hover:underline">
               <span className="truncate">{post.author.name}</span>
-              {post.author.verified && <Verified role={post.author.role} />}
+              {authorBadge(post.author) && <Verified badge={authorBadge(post.author)!} role={post.author.role} />}
             </AuthorLink>
             <p className="truncate font-mono text-xs text-muted-foreground">@{post.author.handle}</p>
           </div>
@@ -283,7 +283,7 @@ export function PostCard({ post, onTicker, variant = "feed", threadLine, onReply
           <AuthorLink author={post.author} className="truncate font-semibold hover:underline">
             {post.author.name}
           </AuthorLink>
-          {post.author.verified && <Verified role={post.author.role} />}
+          {authorBadge(post.author) && <Verified badge={authorBadge(post.author)!} role={post.author.role} />}
           <span className="truncate font-mono text-xs text-muted-foreground">
             @{post.author.handle} ·{" "}
             {pending ? (

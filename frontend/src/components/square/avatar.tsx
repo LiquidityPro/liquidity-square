@@ -3,7 +3,7 @@
 import { LuBadgeCheck as BadgeCheck } from "react-icons/lu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import type { Author } from "./data";
+import { authorBadge, type Author, type Badge } from "./data";
 
 /* Avatar                                                              */
 /* ------------------------------------------------------------------ */
@@ -43,7 +43,9 @@ export function Avatar({
       className={cn(
         "grid shrink-0 place-items-center overflow-hidden rounded-full font-mono font-medium text-foreground",
         tone(author.handle),
-        author.verified && "ring-2 ring-primary/60 ring-offset-2 ring-offset-background",
+        authorBadge(author) === "member" && "ring-2 ring-sky-400/70 ring-offset-2 ring-offset-background",
+        authorBadge(author) === "professional" && "ring-2 ring-emerald-500/70 ring-offset-2 ring-offset-background",
+        authorBadge(author) === "distinguished" && "ring-2 ring-amber-400/80 ring-offset-2 ring-offset-background",
         AVATAR_SIZES[size],
         className,
       )}
@@ -57,19 +59,25 @@ export function Avatar({
   );
 }
 
-export function Verified({ role }: { role?: string }) {
-  const badge = <BadgeCheck className="size-4 shrink-0 fill-amber-400 text-amber-950" aria-label="Verified" />;
-  
-  if (!role) return badge;
+const BADGE_MARK: Record<Badge, { label: string; className: string }> = {
+  member: { label: "Member", className: "fill-sky-400 text-sky-950" },
+  professional: { label: "Professional", className: "fill-emerald-400 text-emerald-950" },
+  distinguished: { label: "Distinguished", className: "fill-amber-400 text-amber-950" },
+};
+
+export function Verified({ badge = "professional", role }: { badge?: Badge; role?: string }) {
+  const mark = BADGE_MARK[badge];
+  const icon = <BadgeCheck className={cn("size-4 shrink-0", mark.className)} aria-label={mark.label} />;
+  const tip = role ? `${mark.label} · ${role}` : mark.label;
 
   return (
     <TooltipProvider delayDuration={0}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className="flex cursor-help items-center">{badge}</span>
+          <span className="flex cursor-help items-center">{icon}</span>
         </TooltipTrigger>
         <TooltipContent side="top" align="center" className="border-border bg-card font-mono text-xs text-card-foreground shadow-xl">
-          {role}
+          {tip}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

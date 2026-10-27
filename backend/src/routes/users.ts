@@ -1,5 +1,5 @@
 import { Router, Response } from "express";
-import { NotificationType, Prisma } from "@prisma/client";
+import { Badge, BadgeApplicationStatus, NotificationType, Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AUTHOR_SELECT, toAuthorDto } from "../lib/author";
 import { pageSize, postInclude, toPostDto } from "../lib/post";
@@ -149,6 +149,110 @@ function cleanImage(value: unknown): string | null {
   if (/^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/=\s]+$/i.test(value) && value.length <= 250_000) return value;
   throw new HttpError("Photo must be a JPEG, PNG, or WebP image");
 }
+
+function applicationView(row: {
+  id: string;
+  title: string | null;
+  firm: string;
+  proofUrl: string;
+  note: string;
+  status: BadgeApplicationStatus;
+  granted: Badge | null;
+  decisionNote: string | null;
+  createdAt: Date;
+  decidedAt: Date | null;
+}) {
+  return {
+    id: row.id,
+    title: row.title,
+    firm: row.firm,
+    proofUrl: row.proofUrl,
+    note: row.note,
+    status: row.status,
+    granted: row.granted,
+    decisionNote: row.decisionNote,
+    createdAt: row.createdAt.toISOString(),
+    decidedAt: row.decidedAt ? row.decidedAt.toISOString() : null,
+  };
+}
+
+// GET /api/users/me/badge-application — the latest professional-badge request
+usersRouter.get("/me/badge-application", async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId! },
+      select: { badge: true, title: true },
+    });
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    const latest = await prisma.badgeApplication.findFirst({
+      where: { userId: req.userId! },
+      orderBy: { createdAt: "desc" },
+    });
+    res.status(200).json({
+      badge: user.badge,
+      title: user.title,
+      application: latest ? applicationView(latest) : null,
+    });
+  } catch (error) {
+    console.error("Badge application error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/users/me/badge-application — ask the desk for a professional badge
+usersRouter.post("/me/badge-application", async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId! },
+      select: { badge: true, title: true },
+    });
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    if (user.badge === Badge.professional || user.badge === Badge.distinguished) {
+      res.status(409).json({ error: "You already have a professional badge" });
+      return;
+    }
+    if (!user.title) {
+      res.status(400).json({ error: "Add a title to your profile first" });
+      return;
+    }
+    const firm = typeof req.body?.firm === "string" ? req.body.firm.trim() : "";
+    const proofUrl = typeof req.body?.proofUrl === "string" ? req.body.proofUrl.trim() : "";
+    const note = typeof req.body?.note === "string" ? req.body.note.trim() : "";
+    if (firm.length < 2 || firm.length > 80) {
+      res.status(400).json({ error: "Name the firm, from 2 to 80 characters" });
+      return;
+    }
+    if (!/^https:\/\/\S+$/.test(proofUrl) || proofUrl.length > 300) {
+      res.status(400).json({ error: "Add a public https link that shows your work" });
+      return;
+    }
+    if (note.length < 10 || note.length > 280) {
+      res.status(400).json({ error: "Tell us why, from 10 to 280 characters" });
+      return;
+    }
+    const open = await prisma.badgeApplication.findFirst({
+      where: { userId: req.userId!, status: BadgeApplicationStatus.pending },
+      select: { id: true },
+    });
+    if (open) {
+      res.status(409).json({ error: "You already have an application in review" });
+      return;
+    }
+    const created = await prisma.badgeApplication.create({
+      data: { userId: req.userId!, title: user.title, firm, proofUrl, note },
+    });
+    res.status(201).json({ application: applicationView(created) });
+  } catch (error) {
+    console.error("Submit badge application error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 // GET /api/users/me/following
 usersRouter.get("/me/following", async (req: AuthenticatedRequest, res: Response): Promise<void> => {

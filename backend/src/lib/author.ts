@@ -8,10 +8,12 @@ export const AUTHOR_SELECT = {
   image: true,
   username: true,
   title: true,
-  verified: true,
+  badge: true,
 } satisfies Prisma.UserSelect;
 
 type AuthorRow = Prisma.UserGetPayload<{ select: typeof AUTHOR_SELECT }>;
+
+export type BadgeName = "none" | "member" | "professional" | "distinguished";
 
 export type AuthorDto = {
   id: string;
@@ -20,6 +22,8 @@ export type AuthorDto = {
   initials: string;
   image: string | null;
   title: string | null;
+  badge: BadgeName;
+  /** Green and gold. A bought member mark is not verification. */
   verified: boolean;
 };
 
@@ -42,6 +46,7 @@ export function toAuthorDto(user: AuthorRow): AuthorDto {
     initials,
     image: user.image,
     title: user.title,
-    verified: user.verified,
+    badge: user.badge,
+    verified: user.badge === "professional" || user.badge === "distinguished",
   };
 }
