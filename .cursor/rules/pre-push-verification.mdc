@@ -1,0 +1,10 @@
+---
+description: Always test and verify build locally before pushing
+globs: *
+---
+# Pre-Push Build Verification
+
+- Before executing any `git push` or committing production code, ensure the build is tested locally and passes.
+- Run `npm run verify` from the workspace root.
+- Verify that backend TypeScript type checking and frontend Next.js production builds complete with 0 errors.
+- Never push code that breaks local or production deployment builds.

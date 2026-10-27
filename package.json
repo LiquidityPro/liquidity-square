@@ -12,6 +12,9 @@
     "dev:backend": "npm run dev --prefix backend",
     "build:frontend": "npm run build --prefix frontend",
     "build:backend": "npm run build --prefix backend",
+    "verify:backend": "npx tsc --noEmit -p backend/tsconfig.json",
+    "verify:frontend": "npm run build:frontend || npm run build:frontend",
+    "verify": "npm run verify:backend && npm run verify:frontend",
     "prisma:studio": "npm run prisma:studio --prefix backend",
     "prisma:migrate": "npm run prisma:migrate --prefix backend"
   },
