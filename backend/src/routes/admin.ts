@@ -296,7 +296,7 @@ adminRouter.get("/analytics", async (_req: AuthenticatedRequest, res: Response):
     for (const post of recentPostsWithTickers) {
       for (const t of post.tickers) {
         if (!tickerStats[t.symbol]) {
-          tickerStats[t.symbol] = { symbol: t.symbol, name: t.name, mentions: 0, bull: 0, bear: 0 };
+          tickerStats[t.symbol] = { symbol: t.symbol, name: t.name ?? t.symbol, mentions: 0, bull: 0, bear: 0 };
         }
         tickerStats[t.symbol].mentions += 1;
         if (post.stance === "bull") tickerStats[t.symbol].bull += 1;
