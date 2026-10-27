@@ -287,7 +287,17 @@ async function loadAccount(id: string) {
   return user;
 }
 
-adminRouter.post("/accounts/:id/badge", async (req: AuthenticatedRequest<{ id: string }>, res: Response): Promise<void> => {
+adminRouter.post("/accounts/:id/verify", async (req: AuthenticatedRequest<{ id: string }>, res: Response): Promise<void> => {
+  req.body = { ...(typeof req.body === "object" && req.body ? req.body : {}), badge: Badge.professional };
+  return setAccountBadge(req, res);
+});
+
+adminRouter.post("/accounts/:id/unverify", async (req: AuthenticatedRequest<{ id: string }>, res: Response): Promise<void> => {
+  req.body = { ...(typeof req.body === "object" && req.body ? req.body : {}), badge: Badge.none };
+  return setAccountBadge(req, res);
+});
+
+async function setAccountBadge(req: AuthenticatedRequest<{ id: string }>, res: Response): Promise<void> {
   try {
     const { note, reportId } = cleanNote(req.body);
     const badge = parseBadge(req.body?.badge);
@@ -302,6 +312,10 @@ adminRouter.post("/accounts/:id/badge", async (req: AuthenticatedRequest<{ id: s
   } catch (error) {
     fail(res, error, "Set badge error:");
   }
+}
+
+adminRouter.post("/accounts/:id/badge", (req: AuthenticatedRequest<{ id: string }>, res: Response): Promise<void> => {
+  return setAccountBadge(req, res);
 });
 
 adminRouter.post("/accounts/:id/suspend", async (req: AuthenticatedRequest<{ id: string }>, res: Response): Promise<void> => {
